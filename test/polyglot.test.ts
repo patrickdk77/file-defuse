@@ -7,7 +7,9 @@ const polyglot = (findings: DefuseFinding[]) => findings.filter(f => f.category 
 describe('polyglots', () => {
   describe('a JPEG with a ZIP archive after it', () => {
     const bytes = fixture('jpeg-zip.bin');
-    const zipAt = bytes.length - 22;
+    // The ZIP archive starts at its first local header. img-defuse names it at its end record, where ZIP readers look.
+    const zipAt = bytes.indexOf('PK\x03\x04');
+    const endRecord = bytes.length - 22;
 
     it('named .jpg: handled as the JPEG, and the archive is removed', async () => {
       const r = await inspectFile(bytes, { name: 'photo.jpg' });
@@ -17,7 +19,7 @@ describe('polyglots', () => {
       expect(f.data).to.deep.equal({ type: 'application/zip', offset: zipAt, handledAs: 'image/jpeg', reason: 'name' });
       expect(f.description).to.equal(`The file is also application/zip, at offset ${zipAt}. It is handled as image/jpeg, chosen by its name, and the application/zip part is removed`);
       // img-defuse reports the same signature at the same offset, so the router's finding adds nothing to the score.
-      expect(r.findings.find(x => x.category === 'POLYGLOT' && x.detail === 'ZIP')?.data).to.deep.equal({ offset: zipAt });
+      expect(r.findings.find(x => x.category === 'POLYGLOT' && x.detail === 'ZIP')?.data).to.deep.equal({ offset: endRecord });
       expect(f.weight).to.equal(0);
       expect(r.score).to.equal((await inspectFile(bytes, { name: 'photo.jpg', actionOverrides: [{ category: FileCategory.Type, detail: FileDetail.Polyglot, action: 'info' }] })).score);
       const d = await disarmFile(bytes, { name: 'photo.jpg' });
@@ -93,7 +95,7 @@ describe('polyglots', () => {
   it('takes the claim of a file inside a container from the container', async () => {
     const r = await inspectFile(fixture('polyglots.pdf'));
     const asJpeg = polyglot(r.findings).find(f => f.attachment === 'photo.jpg');
-    expect(asJpeg?.data).to.deep.equal({ type: 'application/zip', offset: fixture('jpeg-zip.bin').length - 22, handledAs: 'image/jpeg', reason: 'name' });
+    expect(asJpeg?.data).to.deep.equal({ type: 'application/zip', offset: fixture('jpeg-zip.bin').indexOf('PK\x03\x04'), handledAs: 'image/jpeg', reason: 'name' });
     // The attachment named photo.zip is the archive, which archive-defuse reads, and the JPEG in front of it goes.
     expect(r.findings.filter(f => f.data?.name === 'photo.zip').map(line)).to.deep.equal(['info EMBEDDED_FILE/TYPE_MISMATCH', 'info EMBEDDED_FILE/PLUGIN_SCRUBBED']);
     const d = await disarmFile(fixture('polyglots.pdf'));

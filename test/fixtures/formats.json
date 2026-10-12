@@ -50,7 +50,7 @@
   "opc-other": {
     "mimeType": "application/zip",
     "extension": "zip",
-    "family": "office",
+    "family": "archive",
     "heuristic": false
   },
   "xps": {
@@ -86,12 +86,12 @@
   "sun-xml": {
     "mimeType": "application/zip",
     "extension": "zip",
-    "family": "office",
+    "family": "archive",
     "heuristic": false
   },
   "epub": {
-    "mimeType": "application/epub+zip",
-    "extension": "epub",
+    "mimeType": "application/zip",
+    "extension": "zip",
     "family": "archive",
     "heuristic": false
   },
@@ -102,16 +102,16 @@
     "heuristic": false
   },
   "zipx": {
-    "mimeType": "application/x-zipx",
-    "extension": "zipx",
+    "mimeType": "application/zip",
+    "extension": "zip",
     "family": "archive",
-    "heuristic": true
+    "heuristic": false
   },
   "zip-no-directory": {
     "mimeType": "application/zip",
     "extension": "zip",
-    "family": "office",
-    "heuristic": true
+    "family": "archive",
+    "heuristic": false
   },
   "encrypted-ooxml": {
     "mimeType": "application/x-ole-storage",
@@ -176,18 +176,18 @@
   "cfb-two-formats": {
     "mimeType": "application/x-ole-storage",
     "extension": "cfb",
-    "family": "office",
+    "family": null,
     "heuristic": false
   },
   "cfb-unreadable": {
     "mimeType": "application/x-ole-storage",
     "extension": "cfb",
-    "family": "office",
+    "family": null,
     "heuristic": false
   },
   "msi": {
-    "mimeType": "application/x-msi",
-    "extension": "msi",
+    "mimeType": "application/x-ole-storage",
+    "extension": "cfb",
     "family": null,
     "heuristic": false
   },
@@ -204,7 +204,7 @@
     "heuristic": false
   },
   "fodt": {
-    "mimeType": "application/vnd.oasis.opendocument.text",
+    "mimeType": "application/vnd.oasis.opendocument.text-flat-xml",
     "extension": "fodt",
     "family": "office",
     "heuristic": false
@@ -342,16 +342,16 @@
     "heuristic": false
   },
   "xml-utf32le": {
-    "mimeType": "application/xml",
-    "extension": "xml",
-    "family": "xml",
+    "mimeType": "application/octet-stream",
+    "extension": "",
+    "family": null,
     "heuristic": false
   },
   "xml-ebcdic": {
     "mimeType": "application/xml",
     "extension": "xml",
     "family": "xml",
-    "heuristic": true
+    "heuristic": false
   },
   "html": {
     "mimeType": "text/html",
@@ -396,26 +396,26 @@
     "heuristic": false
   },
   "mht-single": {
-    "mimeType": "message/rfc822",
+    "mimeType": "multipart/related",
     "extension": "mht",
     "family": "xml",
     "heuristic": false
   },
   "eml": {
-    "mimeType": "message/rfc822",
-    "extension": "eml",
+    "mimeType": "multipart/related",
+    "extension": "mht",
     "family": "xml",
     "heuristic": false
   },
   "hta": {
-    "mimeType": "application/hta",
-    "extension": "hta",
+    "mimeType": "text/html",
+    "extension": "html",
     "family": "xml",
     "heuristic": false
   },
   "shtml": {
-    "mimeType": "text/x-server-parsed-html",
-    "extension": "shtml",
+    "mimeType": "text/html",
+    "extension": "html",
     "family": "xml",
     "heuristic": false
   },
@@ -459,7 +459,7 @@
     "mimeType": "application/x-tar",
     "extension": "tar",
     "family": "archive",
-    "heuristic": true
+    "heuristic": false
   },
   "cab": {
     "mimeType": "application/vnd.ms-cab-compressed",

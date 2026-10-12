@@ -842,10 +842,14 @@ const untidyPng = () => Buffer.concat([png({ text: 'made by hand' }), B('trailin
 // One small sample of every format detection names, in test/fixtures/formats, with the detection each must get in
 // formats.json. They hold a format's signature and the structure detection reads, not a whole file of that format.
 
-const oox = (mainType, extra = []) =>
+const OFFICE_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+const VISIO_DOCUMENT = 'http://schemas.microsoft.com/visio/2010/relationships/document';
+/** The smallest package office-defuse names: content types, the package relationship to the main part, and the part. */
+const oox = (mainType, relType = OFFICE_DOCUMENT) =>
   zip([
     ['[Content_Types].xml', B(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/main.xml" ContentType="${mainType}"/></Types>`)],
-    ...extra,
+    ['_rels/.rels', B(`<Relationships xmlns="${RELS_NS}"><Relationship Id="R1" Type="${relType}" Target="main.xml"/></Relationships>`)],
+    ['main.xml', B('<?xml version="1.0"?><document/>')],
   ]);
 const odfZip = media =>
   zip([
@@ -864,6 +868,7 @@ const xpsZip = open =>
         `<Relationships xmlns="${RELS_NS}"><Relationship Id="R0" Type="${open ? 'http://schemas.openxps.org/oxps/v1.0' : 'http://schemas.microsoft.com/xps/2005/06'}/fixedrepresentation" Target="/a.fdseq"/></Relationships>`,
       ),
     ],
+    ['a.fdseq', B('<FixedDocumentSequence/>')],
   ]);
 const stream = (name, data = B('x')) => ({ name, data });
 /** A tar header of one empty file, with `magic` at 257 and its checksum. */
@@ -908,23 +913,31 @@ const formats = {
   xlsx: [oox('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx', 'office'],
   xlsb: [oox('application/vnd.ms-excel.sheet.binary.macroEnabled.main'), 'application/vnd.ms-excel.sheet.binary.macroEnabled.12', 'xlsb', 'office'],
   pptx: [oox('application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml'), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx', 'office'],
-  vsdx: [oox('application/vnd.ms-visio.drawing.main+xml'), 'application/vnd.ms-visio.drawing', 'vsdx', 'office'],
-  'opc-other': [oox('application/vnd.example.package+xml'), 'application/zip', 'zip', 'office'],
+  vsdx: [oox('application/vnd.ms-visio.drawing.main+xml', VISIO_DOCUMENT), 'application/vnd.ms-visio.drawing', 'vsdx', 'office'],
+  // A package of a kind office-defuse cannot name is a ZIP archive to archive-defuse.
+  'opc-other': [oox('application/vnd.example.package+xml'), 'application/zip', 'zip', 'archive'],
   xps: [xpsZip(false), 'application/vnd.ms-xpsdocument', 'xps', 'office'],
   oxps: [xpsZip(true), 'application/oxps', 'oxps', 'office'],
   odt: [odfZip('application/vnd.oasis.opendocument.text'), 'application/vnd.oasis.opendocument.text', 'odt', 'office'],
   ods: [odfZip('application/vnd.oasis.opendocument.spreadsheet'), 'application/vnd.oasis.opendocument.spreadsheet', 'ods', 'office'],
   'odf-manifest': [
-    zip([['META-INF/manifest.xml', B('<manifest:manifest><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.presentation"/></manifest:manifest>')]]),
+    zip([
+      [
+        'META-INF/manifest.xml',
+        B(
+          '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.presentation"/></manifest:manifest>',
+        ),
+      ],
+    ]),
     'application/vnd.oasis.opendocument.presentation',
     'odp',
     'office',
   ],
-  'sun-xml': [odfZip('application/vnd.sun.xml.writer'), 'application/zip', 'zip', 'office'],
-  epub: [odfZip('application/epub+zip'), 'application/epub+zip', 'epub', 'archive'],
+  'sun-xml': [odfZip('application/vnd.sun.xml.writer'), 'application/zip', 'zip', 'archive'],
+  epub: [odfZip('application/epub+zip'), 'application/zip', 'zip', 'archive'],
   zip: [zip([['readme.txt', B('hello\n')]]), 'application/zip', 'zip', 'archive'],
-  zipx: [zip([['readme.txt', B('not really LZMA'), 14]]), 'application/x-zipx', 'zipx', 'archive', 'heuristic'],
-  'zip-no-directory': [zip([['[Content_Types].xml', B('<Types/>')]]).subarray(0, 60), 'application/zip', 'zip', 'office', 'heuristic'],
+  zipx: [zip([['readme.txt', B('not really LZMA'), 14]]), 'application/zip', 'zip', 'archive'],
+  'zip-no-directory': [zip([['[Content_Types].xml', B('<Types/>')]]).subarray(0, 60), 'application/zip', 'zip', 'archive'],
   'encrypted-ooxml': [cfb([stream('EncryptionInfo'), stream('EncryptedPackage')]), 'application/x-ole-storage', '', 'office'],
   doc: [cfb([stream('WordDocument'), stream('1Table')]), 'application/msword', 'doc', 'office'],
   xls: [cfb([stream('Workbook')]), 'application/vnd.ms-excel', 'xls', 'office'],
@@ -935,12 +948,13 @@ const formats = {
   oft: [cfb([stream('__properties_version1.0')], '0006F046-0000-0000-C000-000000000046'), 'application/vnd.ms-outlook', 'oft', 'office'],
   pub: [cfb([{ name: 'Quill', children: [stream('CONTENTS')] }]), 'application/x-mspublisher', 'pub', 'office'],
   mpp: [cfb([stream('Props'), { name: '   114', children: [stream('Var2Data')] }]), 'application/vnd.ms-project', 'mpp', 'office'],
-  'cfb-two-formats': [cfb([stream('WordDocument'), stream('Workbook')]), 'application/x-ole-storage', 'cfb', 'office'],
-  'cfb-unreadable': [Buffer.concat([Buffer.from('d0cf11e0a1b11ae1', 'hex'), Buffer.alloc(600)]), 'application/x-ole-storage', 'cfb', 'office'],
-  msi: [cfb([stream('\u4840\u3f3f\u4577')], '000C1084-0000-0000-C000-000000000046'), 'application/x-msi', 'msi', undefined],
+  // Compound files office-defuse cannot name, which no package reads.
+  'cfb-two-formats': [cfb([stream('WordDocument'), stream('Workbook')]), 'application/x-ole-storage', 'cfb', undefined],
+  'cfb-unreadable': [Buffer.concat([Buffer.from('d0cf11e0a1b11ae1', 'hex'), Buffer.alloc(600)]), 'application/x-ole-storage', 'cfb', undefined],
+  msi: [cfb([stream('\u4840\u3f3f\u4577')], '000C1084-0000-0000-C000-000000000046'), 'application/x-ole-storage', 'cfb', undefined],
   'cfb-other': [cfb([stream('Equation Native')]), 'application/x-ole-storage', 'cfb', undefined],
   rtf: [B('{\\rtf1\\ansi Hello}'), 'application/rtf', 'rtf', 'office'],
-  fodt: [flatOdf(png()), 'application/vnd.oasis.opendocument.text', 'fodt', 'office'],
+  fodt: [flatOdf(png()), 'application/vnd.oasis.opendocument.text-flat-xml', 'fodt', 'office'],
   'flat-opc': [flatOpc(png()), 'application/xml', 'xml', 'office'],
   png: [png(), 'image/png', 'png', 'image'],
   jpeg: [jpeg(), 'image/jpeg', 'jpg', 'image'],
@@ -963,8 +977,9 @@ const formats = {
   xml: [B(`${XML_DECL}<root/>`), 'application/xml', 'xml', 'xml'],
   'xml-utf16le-bom': [Buffer.concat([Buffer.from([0xff, 0xfe]), utf16('<?xml version="1.0" encoding="UTF-16"?><root/>', true)]), 'application/xml', 'xml', 'xml'],
   'xml-utf16be': [utf16('<?xml version="1.0" encoding="UTF-16"?><root/>', false), 'application/xml', 'xml', 'xml'],
-  'xml-utf32le': [utf32le('<?xml version="1.0"?><root/>'), 'application/xml', 'xml', 'xml'],
-  'xml-ebcdic': [Buffer.from([0x4c, 0x6f, 0xa7, 0x94, 0x93, 0x40]), 'application/xml', 'xml', 'xml', 'heuristic'],
+  // xml-defuse does not read UTF-32 without a byte order mark, and refuses XML in EBCDIC, which it claims.
+  'xml-utf32le': [utf32le('<?xml version="1.0"?><root/>'), 'application/octet-stream', '', undefined],
+  'xml-ebcdic': [Buffer.from([0x4c, 0x6f, 0xa7, 0x94, 0x93, 0x40]), 'application/xml', 'xml', 'xml'],
   html: [B('<html><body>Hello</body></html>'), 'text/html', 'html', 'xml'],
   'html-doctype': [B('<!DOCTYPE html><p>Hello'), 'text/html', 'html', 'xml'],
   'html-comment': [B('<!-- note --><div>Hello</div>'), 'text/html', 'html', 'xml'],
@@ -972,17 +987,18 @@ const formats = {
   svg: [B('<svg xmlns="http://www.w3.org/2000/svg"/>'), 'image/svg+xml', 'svg', 'xml'],
   xslt: [B(`${XML_DECL}<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"/>`), 'application/xslt+xml', 'xsl', 'xml'],
   mht: [B(`MIME-Version: 1.0\r\nContent-Type: ${MT}\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Hi</p>\r\n--b--\r\n`), 'multipart/related', 'mht', 'xml'],
-  'mht-single': [B('MIME-Version: 1.0\r\nContent-Type: text/html\r\n\r\n<p>Hi</p>\r\n'), 'message/rfc822', 'mht', 'xml'],
-  eml: [B('From: a@example.com\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n--b--\r\n'), 'message/rfc822', 'eml', 'xml'],
-  hta: [B('<html><head><hta:application id="app"/></head></html>'), 'application/hta', 'hta', 'xml'],
-  shtml: [B('<html><body><!--#include virtual="/footer.html" --></body></html>'), 'text/x-server-parsed-html', 'shtml', 'xml'],
+  'mht-single': [B('MIME-Version: 1.0\r\nContent-Type: text/html\r\n\r\n<p>Hi</p>\r\n'), 'multipart/related', 'mht', 'xml'],
+  eml: [B('From: a@example.com\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n--b--\r\n'), 'multipart/related', 'mht', 'xml'],
+  // xml-defuse reads both as HTML, and refuses the HTML Application when it reads it.
+  hta: [B('<html><head><hta:application id="app"/></head></html>'), 'text/html', 'html', 'xml'],
+  shtml: [B('<html><body><!--#include virtual="/footer.html" --></body></html>'), 'text/html', 'html', 'xml'],
   gzip: [zlib.gzipSync(B('hello'), { level: 0 }).fill(0, 4, 8), 'application/gzip', 'gz', 'archive'],
   bzip2: [Buffer.concat([B('BZh9'), Buffer.from([0x17, 0x72, 0x45, 0x38, 0x50, 0x90, 0, 0, 0, 0])]), 'application/x-bzip2', 'bz2', 'archive'],
   zstd: [Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x20, 0, 0x01, 0, 0]), 'application/zstd', 'zst', 'archive'],
   'zstd-skippable': [Buffer.concat([Buffer.from([0x50, 0x2a, 0x4d, 0x18]), u32le(2), B('hi'), Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x20, 0, 0x01, 0, 0])]), 'application/zstd', 'zst', 'archive'],
   'tar-ustar': [tarHeader('ustar\x0000'), 'application/x-tar', 'tar', 'archive'],
   'tar-gnu': [tarHeader('ustar  \0'), 'application/x-tar', 'tar', 'archive'],
-  'tar-old': [tarHeader(), 'application/x-tar', 'tar', 'archive', 'heuristic'],
+  'tar-old': [tarHeader(), 'application/x-tar', 'tar', 'archive'],
   cab: [Buffer.concat([B('MSCF\0\0\0\0'), Buffer.alloc(16), Buffer.from([3, 1])]), 'application/vnd.ms-cab-compressed', 'cab', 'archive'],
   '7z': [sevenZip(), 'application/x-7z-compressed', '7z', 'archive'],
   xz: [Buffer.from([0xfd, 0x37, 0x7a, 0x58, 0x5a, 0, 0, 4]), 'application/x-xz', 'xz', 'archive'],

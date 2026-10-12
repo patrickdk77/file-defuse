@@ -111,13 +111,11 @@ export class Tree {
 
   /** Detects the file's format and asks the package's plugin whether it takes the file. */
   async pick(file: ContainedFile): Promise<Pick> {
-    const detection = await detectSource(file.source, file.size, { name: file.name, declaredType: file.declaredType });
-    for (const family of [detection.family, detection.fallback]) {
-      const reader = family && this.reader(family);
-      if (!reader) continue;
-      const view: ContainedFile = { ...file, sniffedType: detection.sniffedType, source: unclosable(file.source) };
-      if (await reader.plugin.accepts(view)) return { reader, file: view, detection };
-    }
+    const detection = await detectSource(file.source, file.size, { name: file.name, declaredType: file.declaredType }, this.deadline);
+    const reader = detection.family && this.reader(detection.family);
+    if (!reader) return { detection };
+    const view: ContainedFile = { ...file, sniffedType: detection.sniffedType, source: unclosable(file.source) };
+    if (await reader.plugin.accepts(view)) return { reader, file: view, detection };
     return { detection };
   }
 
@@ -182,8 +180,15 @@ export class Tree {
    */
   polyglot(d: Detected, packageFindings: DefuseFinding[] | undefined, rewritten: boolean): FileFinding[] {
     const out: FileFinding[] = [];
+    // A package names the same part at its own offset, such as img-defuse a ZIP archive at its end record, so a finding
+    // is the package's own for a signature when it falls between that signature and the next one.
+    const starts = d.signatures.map(x => x.offset).sort((a, b) => a - b);
     for (const s of d.others) {
-      const own = packageFindings?.find(p => p.attachment === undefined && p.category === 'POLYGLOT' && p.data?.offset === s.offset);
+      const end = starts.find(o => o > s.offset) ?? Number.POSITIVE_INFINITY;
+      const own = packageFindings?.find(p => {
+        const at = p.data?.offset;
+        return p.attachment === undefined && p.category === 'POLYGLOT' && typeof at === 'number' && at >= s.offset && at < end;
+      });
       const reason = d.chosenBy ?? 'firstSignature';
       const data = { type: s.mimeType, offset: s.offset, handledAs: d.mimeType, reason };
       const f = this.factory.make(C.Type, D.Polyglot, data);
@@ -203,7 +208,7 @@ export class Tree {
    * finding an override made `info` is not held against it.
    */
   async leftover(d: Detected, output: ByteSource, size: number, hints: DetectHints, findings: FileFinding[]): Promise<FileSignature[]> {
-    const again = await detectSource(output, size, hints);
+    const again = await detectSource(output, size, hints, this.deadline);
     const kept = new Set(findings.filter(f => f.action === 'info').map(f => f.data?.type));
     const second = again.family === d.family ? again.others : again.signatures;
     return second.filter(s => !kept.has(s.mimeType));

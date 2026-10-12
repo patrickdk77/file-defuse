@@ -51,14 +51,16 @@ All three functions close the source when they end. A rejected upload leaves the
 
 `detectFile(bytes, hints)` and `detectFileSource(source, hints)` say what file-defuse makes of a file. The router calls the same code, so the result is what routing does. `hints` is `{ name, declaredType }`, both optional.
 
+file-defuse does not keep its own copy of the packages' format rules. It reads the first 64 KiB once and asks each package with its own detect function, `detectOffice`, `detectPdf`, `detectImage`, `detectXml` and `detectArchive`, in that order. Each package names only the formats it reads, by the code its inspection uses, and says where in the file the format starts. Routing and reading cannot disagree.
+
 ```
 $ file-defuse detect test/fixtures/jpeg-zip.bin
 {
   "mimeType": "image/jpeg",
   "extension": "jpg",
   "signatures": [
-    { "mimeType": "image/jpeg", "extension": "jpg", "offset": 0, "family": "image" },
-    { "mimeType": "application/zip", "extension": "zip", "offset": 279, "family": "archive" }
+    { "mimeType": "image/jpeg", "extension": "jpg", "family": "image", "offset": 0 },
+    { "mimeType": "application/zip", "extension": "zip", "family": "archive", "offset": 153 }
   ],
   "sniffedType": "image/jpeg",
   "family": "image",
@@ -70,79 +72,56 @@ $ file-defuse detect test/fixtures/jpeg-zip.bin
 |---|---|
 | `mimeType`, `extension` | The format the file is handled as. `application/octet-stream` and `''` when nothing matched |
 | `family` | `pdf`, `office`, `image`, `xml`, `archive` or `text`. Absent for a format no family package reads, such as RAR or an executable |
-| `signatures` | Every format the content matches, with `offset`, `family`, and `heuristic` when the match is a guess. More than one makes the file a polyglot |
+| `signatures` | Every format a package claims, with `family`, the `offset` where it starts, and `heuristic` when the claim rests on more than the content. A format no package reads at the start of the file is listed too, without a family. More than one makes the file a polyglot |
 | `chosenBy` | For a polyglot, what chose the format: `name`, `declaredType` or `firstSignature` |
 | `heuristic` | Set when the chosen format rests on a heuristic, saying what it rests on |
-| `encoding` | For text and markup: `utf-8`, `utf-16le`, `utf-16be`, `utf-32le`, `utf-32be`, or `8-bit` for text that is not UTF-8 and names no encoding |
+| `encoding` | For text: `utf-8`, `utf-16le`, `utf-16be`, `utf-32le`, `utf-32be`, or `8-bit` for text that is not UTF-8 and names no encoding |
 | `textTypes` | For text, the subtypes the name and declared type give |
 | `sniffedType` | The type the router gives the package as `ContainedFile.sniffedType`, the container format, such as `application/zip` for every Office Open XML package |
 
 ### Formats
 
-Detection reads the first 64 KiB of the file, and for a ZIP archive the last 65,557 bytes and the central directory. A signature at offset 0 is tried first, in the table's order.
+Each package claims the formats its own README lists:
 
-| Signature | Format | Family |
-|---|---|---|
-| `%PDF-` | PDF | `pdf` |
-| `PK\x03\x04`, `PK\x05\x06` or `PK\x07\x08`, then the central directory | See ZIP archives below | `office` or `archive` |
-| `D0 CF 11 E0 A1 B1 1A E1`, then the root storage | See compound files below | `office`, or none |
-| `{\rt` | RTF | `office` |
-| PNG, JPEG `FF D8 FF`, `GIF87a`/`GIF89a`, `RIFF`...`WEBP`, TIFF and BigTIFF, BMP with an info header size img-defuse knows, ICO and CUR with at least one image | The image formats, with img-defuse's own tests | `image` |
-| `00 00 00 0C 6A 50 20 20 0D 0A 87 0A`, or `FF 4F FF 51` | JPEG 2000, as a JP2 file or a bare codestream | `image` |
-| `FF 0A`, or `00 00 00 0C 4A 58 4C 20 0D 0A 87 0A` | JPEG XL, as a bare codestream or a container | `image` |
-| `01 00 00 00` with ` EMF` at 40, WMF's placeable or bare header, `8BPS` | EMF, WMF, and PSD or, at version 2, PSB | `image` |
-| `1F 8B` | gzip | `archive` |
-| `BZh1` to `BZh9`, then a block or the end of the stream | bzip2 | `archive` |
-| `28 B5 2F FD`, or a skippable frame `50`-`5F 2A 4D 18` | zstd | `archive` |
-| `MSCF` and four zero bytes | cab | `archive` |
-| `37 7A BC AF 27 1C` | 7z | `archive` |
-| `FD 37 7A 58 5A 00` | xz | `archive` |
-| `ustar\0` `00` or `ustar  \0` at 257 | tar | `archive` |
-| A header checksum that matches, with no magic | old tar | `archive`, heuristic |
-| `Rar!\x1A\x07`, `\x7FELF`, `MZ` with a PE header, `%!PS`, `ID;P` | RAR, ELF, Windows executable, PostScript, SYLK | none |
-| Markup at the start, in any encoding below | See markup below | `xml`, or `office` for flat files |
-| `%PDF-` within the first 1024 bytes | PDF | `pdf` |
-| A ZIP end record within the last 65,557 bytes whose directory offset leads to a central directory | See ZIP archives below | `office` or `archive` |
-| A 7z signature header whose start header CRC matches, within the first MiB, when no signature starts the file or an executable does | 7z | `archive` |
-| The lzma-alone header, when nothing else matched | lzma | `archive`, heuristic |
-| Text, when nothing else matched | See text below | `text` |
+| Package | Claims |
+|---|---|
+| office-defuse | Office Open XML, XPS and OpenDocument packages whose format it can name, flat OpenDocument and Flat OPC files, compound files whose root names an Office format, encrypted Office Open XML packages, and RTF |
+| pdf-defuse | A file with a PDF header in its first 1024 bytes, or one without a header whose name or declared type says PDF and which opens as a PDF |
+| img-defuse | The image formats it reads, by their first 64 bytes |
+| xml-defuse | HTML, XHTML, SVG, XSLT, XML and MHT, by the markup or MIME headers at the start, and XML in EBCDIC, which it refuses |
+| archive-defuse | ZIP, tar, gzip, bzip2, zstd, cabinet, 7z, xz and .lzma files, a ZIP archive behind other data, a 7z archive after a program, and Brotli when the name or declared type says Brotli |
 
-The PDF header, the ZIP end record and the 7z signature header are found away from the start too. PDF readers take a header anywhere in the first 1024 bytes, ZIP readers find the end record from the end of the file, and 7-Zip looks past the program of a self-extracting archive. They are how a polyglot shows its second format.
+A package claims a file it can name even when the file is damaged further on, and its inspection then rejects the file. It claims nothing it cannot name. archive-defuse reads every ZIP archive, so its claim gives way when office-defuse names the same bytes. A ZIP archive office-defuse cannot name is archive-defuse's: a plain archive, an EPUB, a NuGet or StarOffice package, a package cut short, and a package with data in front, which office-defuse refuses.
 
-**ZIP archives.** Detection reads the central directory and the entry names, up to 65,536 entries and 16 MiB of directory. `[Content_Types].xml` makes the archive an Office Open XML package, and the content types name the format: .docx, .xlsm, .pptx, .vsdx and the rest office-defuse lists, or XPS and OpenXPS when it names a FixedDocumentSequence. A `mimetype` entry or `META-INF/manifest.xml` makes it an OpenDocument package of the media type it names. EPUB, whose `mimetype` entry says `application/epub+zip`, is an archive. A package with an Office marker and a type office-defuse does not know, such as a StarOffice document or a NuGet package, still goes to office-defuse, which refuses it with its own finding. An archive with no marker is an archive, and a .zipx when an entry uses a method only WinZip writes. Without a readable end record, the first entry's name decides.
-
-To read a content type, detection inflates the start of `[Content_Types].xml`, the manifest, `_rels/.rels` or the `mimetype` entry, never more than 8 KiB of output, and halves the compressed input it inflates until the output fits. An entry that inflates to gigabytes costs no more than one that inflates to 8 KiB. Nothing is allocated from a size the archive declares.
-
-**Compound files.** Detection reads the header, the FAT sectors the directory needs and up to 1024 directory sectors, and names the format by the streams and storages of the root, as office-defuse does: `WordDocument` for .doc, `Workbook` or `Book` for .xls, `PowerPoint Document`, `VisioDocument`, `__properties_version1.0` for .msg and .oft, a `Quill` storage or Publisher's class id for .pub, `Props` beside a numbered storage for .mpp, and `EncryptionInfo` with `EncryptedPackage` for an encrypted Office Open XML package. All of them go to office-defuse. A compound file that names none of them, such as an installer or an OLE object's own storage, has no family. One whose directory does not read goes to office-defuse, which gives the reason.
-
-**Markup.** A byte order mark names UTF-8, UTF-16 or UTF-32. Without one, the pattern `<` makes in UTF-16 or UTF-32 names them, and EBCDIC's `<?xm` names EBCDIC XML. Otherwise the bytes are taken as ASCII-compatible. The markup rules are xml-defuse's own. MIME headers that name a multipart body, a message, or one markup body after `MIME-Version` make MHT, or mail for any other multipart body. An XML declaration, a namespace declaration on the first element, a document type other than HTML, or a first element HTML does not know makes XML. A first element HTML knows, or the HTML5 document type, makes HTML. Comments, processing instructions and a document type before the first element are skipped. Among XML, a root of `svg` is SVG, an XSL `stylesheet` or `transform` is XSLT, and `html` in the XHTML namespace is XHTML. A root of `office:document` in the OpenDocument namespace or `pkg:package` in the Flat OPC namespace goes to office-defuse. Among HTML, an `hta:application` element is HTA and a server-side include such as `<!--#exec` is SHTML.
+file-defuse itself names a few formats no package reads, at the start of a file, so a report can say what the file is. They are RAR, ELF and Windows executables, PostScript, SYLK, and a compound file office-defuse cannot name, such as an installer. They have no family. Text, which no package claims, is the last guess.
 
 **Text.** Content is text when it decodes cleanly, as UTF-8 or as UTF-16 or UTF-32 behind a byte order mark, and holds no NUL and no control character but tab, carriage return, line feed and form feed. Bytes that are not UTF-8, name no encoding, and hold no C0 control but those four and no DEL are text in an 8-bit encoding, which is a guess, since every 8-bit encoding fits. An empty file is text.
 
 ### Claims
 
-A name and a declared type never choose a family. They do two things.
+A name and a declared type never overrule what the content shows. They do three things.
 
 - They choose a text subtype: `.csv` or `text/csv`, `.tsv`, `.tab` or `text/tab-separated-values`, `.md`, `.markdown` or `text/markdown`, and `.txt` or `text/plain`. Both are read, the name first, and each subtype adds its rules. None removes a rule.
 - They choose among the formats of a polyglot, described below.
+- They let a package claim a format the content cannot show on its own. pdf-defuse claims a file without a PDF header when the claim says PDF and the file opens as one. archive-defuse claims a Brotli stream only when the claim says Brotli.
 
 For the upload they come from the `name` and `declaredType` options. A file inside the upload uses what its container gives: the attachment's name and subtype in a PDF, the part name and content type in an Office package. img-defuse declares every image inside an image as `image/jpeg`.
 
 ### Heuristics and weak spots
 
 - An old tar header has no magic, only a checksum.
-- lzma-alone has no magic. Detection uses archive-defuse's test, which is liblzma's: properties with lc + lp at most 4, a dictionary of 2^n or 2^n + 2^(n-1) bytes or 0, a size that is unknown or below 256 GiB, and a first byte of 0 in the range coder data. Fourteen zero bytes pass it. Detection tries it only when nothing else matched.
-- A .zipx is a guess from its methods, and a ZIP archive without a readable end record is judged by its first entry's name.
-- 8-bit text is a guess, and so is EBCDIC XML.
-- Brotli has no signature, so no content says a file is Brotli. A Brotli stream routes as whatever its bytes look like, usually as no family, and only a container that declares Brotli can say so.
-- A self-extracting archive starts with an executable, so detection names the executable. A 7z archive after it is found within the first MiB and a ZIP archive from its end record, and the claim chooses between them. A RAR archive after it is not looked for.
-- A PDF whose header is missing, damaged or past the first 1024 bytes is not a PDF to detection, as it is not to pdf-defuse.
+- lzma-alone has no magic. archive-defuse uses liblzma's test, properties with lc + lp at most 4, a dictionary of 2^n or 2^n + 2^(n-1) bytes or 0, a size that is unknown or below 256 GiB, and a first byte of 0 in the range coder data, and tries it after every signature. Fourteen zero bytes pass it.
+- 8-bit text is a guess, since every 8-bit encoding fits.
+- Brotli has no signature, and a one-byte file can decode as a Brotli stream. archive-defuse claims Brotli only when the name or declared type says Brotli and the whole file decodes.
+- A self-extracting archive starts with an executable, so file-defuse names the executable. archive-defuse finds a 7z archive after it within the first MiB, and a ZIP archive from its end record, and the claim chooses between them. A RAR archive after it is not looked for.
+- A PDF whose header is missing, damaged or past the first 1024 bytes is a PDF only when its name or declared type says so and pdf-defuse opens it. Text with a PDF after it is text unless it claims to be a PDF.
+- XML in UTF-32 without a byte order mark is a format no package reads.
 
 ## Routing
 
-The router detects the file and calls the package of its family. That package's plugin decides whether it takes the file, with `sniffedType` set to the container type. office-defuse takes a ZIP archive only when its strict reader opens it, and img-defuse and archive-defuse take only the formats they read. xml-defuse takes markup by its content, and not an Office document saved as XML. A file no package reads, or whose package does not take it, is not accepted, and the container's own rule decides it. That is EMBEDDED_FILE/NO_PLUGIN in pdf-defuse, the part's own finding in office-defuse, such as EMBEDDED/PACKAGE, EMBEDDED_IMAGE/NO_PLUGIN in img-defuse, EMBEDDED/NO_PLUGIN in xml-defuse and ENTRY/NO_PLUGIN in archive-defuse. Each removes the file by default.
+The router detects the file and calls the package that claims it, with `sniffedType` set to the container type. Each package's plugin takes exactly what its detect function claims, so the package that claims a file reads it, at the upload and inside a container. A file no package claims is not accepted, and the container's own rule decides it. That is EMBEDDED_FILE/NO_PLUGIN in pdf-defuse, the part's own finding in office-defuse, such as EMBEDDED/PACKAGE, EMBEDDED_IMAGE/NO_PLUGIN in img-defuse, EMBEDDED/NO_PLUGIN in xml-defuse and ENTRY/NO_PLUGIN in archive-defuse. Each removes the file by default.
 
-The upload is different in one way. When the package of its family does not take it, that package reads it anyway, so its refusal names the problem. A .docx cut short gets office-defuse's CONTAINER/NOT_ZIP, and a JPEG 2000 file of brand JPM gets img-defuse's FORMAT/UNSUPPORTED.
+The package that claims a file names the problem when it cannot read it. A .docx cut short is a ZIP archive to archive-defuse, which rejects it as unparseable, and a JPEG 2000 file of brand JPM gets img-defuse's FORMAT/UNSUPPORTED. An upload no package claims gets TYPE/NO_PACKAGE, described below.
 
 Each package gets its section of the options, with file-defuse's router added after any file plugins the section lists. A package hands each file it finds to its plugins in order, so the caller's plugins see a file first and file-defuse sees the files they leave.
 
@@ -165,14 +144,14 @@ A polyglot is a file whose content matches more than one format the family detec
 5. When the other part sits in data the chosen format needs, it cannot go without breaking the file, and the finding is `reject`. The router knows this when the package says so in its own POLYGLOT finding, such as img-defuse's POLYGLOT/IMAGE_DATA. When no package reads the chosen format, nothing can remove the other part, and the finding is `reject` as well.
 6. After the package writes its output, the router detects the output again. A second format still in it rejects the file with PROCESSING/VERIFICATION_FAILED, whose `data.reasons` names it, whichever package wrote it. A rewrite can also make one. When xml-defuse removes a script, the text after it moves forward, and a `%PDF-` in that text can land in the first 1024 bytes, where PDF readers look for a header.
 
-A package's own polyglot findings stay in the report. When one names the same offset as the router's finding, the router's weighs 0, so one signature never adds to the score twice. Otherwise its weight adds to the package's score the way the family adds a kind of finding: the highest weight in full and a quarter of each other kind's.
+A package's own polyglot findings stay in the report. When one names an offset inside the part the router's finding names, from its start up to the next format's, the router's weighs 0, so one part never adds to the score twice. img-defuse names a ZIP archive at its end record, and the router at its first entry. Otherwise its weight adds to the package's score the way the family adds a kind of finding: the highest weight in full and a quarter of each other kind's.
 
 An `info` override on TYPE/POLYGLOT keeps the other part, and the output check does not hold it against the file.
 
 ```
 $ file-defuse inspect test/fixtures/jpeg-zip.bin
 inspection: strippable, risk HIGH (score 73), read by image
-  strip  TYPE/POLYGLOT [offset 279]: The file is also application/zip, at offset 279. It is handled as image/jpeg, chosen by the signature at its start, and the application/zip part is removed
+  strip  TYPE/POLYGLOT [offset 153]: The file is also application/zip, at offset 153. It is handled as image/jpeg, chosen by the signature at its start, and the application/zip part is removed
   info   METADATA/COMMENT [COM segment at 2]: A comment
   strip  STRUCTURE/TRAILING_DATA [offset 153]: Data after the end of the image
   strip  POLYGLOT/ZIP [offset 279]: A ZIP directory sits where ZIP readers look for one, so the file also opens as an archive

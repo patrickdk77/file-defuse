@@ -46,12 +46,13 @@ describe('the upload', () => {
     expect((await inspectFile(fixture('unknown.bin'))).findings[0].data).to.equal(undefined);
   });
 
-  it('lets the package of the detected family read an upload its plugin would not take, so its refusal names the problem', async () => {
-    // A .docx cut short: no end record, so office-defuse's plugin does not take it, and its reader says why.
+  it('sends a file to the package that claims it, whose own refusal names the problem', async () => {
+    // A .docx cut short: no end record, so office-defuse cannot name it. Its first local header makes it a ZIP archive
+    // to archive-defuse, whose reader says why it cannot read it.
     const cut = fixture('embedded.docx').subarray(0, 2000);
     const r = await inspectFile(cut);
-    expect([r.status, r.package]).to.deep.equal(['rejected', 'office']);
-    expect(r.findings.map(f => `${f.category}/${f.detail}`)).to.include('CONTAINER/NOT_ZIP');
+    expect([r.status, r.package]).to.deep.equal(['rejected', 'archive']);
+    expect(r.findings.map(f => `${f.category}/${f.detail}`)).to.include('CORRUPTED/UNPARSEABLE');
   });
 
   it('cannot strip an upload no package reads, so a strip override rejects it', async () => {

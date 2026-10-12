@@ -1,6 +1,6 @@
 {
   "name": "@patrickdk77/file-defuse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sanitize uploads with the defuse family. Sniffs the content, hands the file to the package that reads it, routes every file found inside back through the same router, and limits the whole tree: size, depth, file count, decoded bytes and time.",
   "license": "MIT",
   "author": "patrickdk77",
@@ -68,11 +68,11 @@
     "nested"
   ],
   "dependencies": {
-    "@patrickdk77/archive-defuse": "^0.1.0",
-    "@patrickdk77/img-defuse": "^0.2.0",
-    "@patrickdk77/office-defuse": "^0.2.0",
-    "@patrickdk77/pdf-defuse": "^0.2.2",
-    "@patrickdk77/xml-defuse": "^0.1.0"
+    "@patrickdk77/archive-defuse": "^0.1.1",
+    "@patrickdk77/img-defuse": "^0.2.1",
+    "@patrickdk77/office-defuse": "^0.2.1",
+    "@patrickdk77/pdf-defuse": "^0.2.3",
+    "@patrickdk77/xml-defuse": "^0.1.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

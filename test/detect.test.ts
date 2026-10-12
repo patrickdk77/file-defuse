@@ -47,7 +47,8 @@ describe('detection', () => {
       ['application/zip', 'archive'],
     ]);
     expect(d.signatures[0].offset).to.equal(0);
-    expect(d.signatures[1].offset).to.equal(fixture('jpeg-zip.bin').length - 22);
+    // The ZIP archive starts at its first entry's local header, where archive-defuse's reader finds it.
+    expect(d.signatures[1].offset).to.equal(fixture('jpeg-zip.bin').indexOf('PK\x03\x04'));
     expect([d.mimeType, d.chosenBy]).to.deep.equal(['image/jpeg', 'firstSignature']);
   });
 
@@ -111,13 +112,13 @@ describe('detection', () => {
     expect((await detectFile(Buffer.alloc(14))).mimeType).to.equal('application/x-lzma');
   });
 
-  it('judges a ZIP archive by its central directory, wherever the end record sits', async () => {
+  it('finds a ZIP archive with data in front, which archive-defuse reads and office-defuse refuses', async () => {
     const prefixed = Buffer.concat([Buffer.alloc(300, 0xff), fixture('embedded.docx')]);
     const d = await detectFile(prefixed);
-    expect([d.mimeType, d.family]).to.deep.equal(['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'office']);
+    expect([d.mimeType, d.family, d.signatures[0].offset]).to.deep.equal(['application/zip', 'archive', 300]);
   });
 
-  it('inflates no more of [Content_Types].xml than a few kilobytes, however far it inflates', async () => {
+  it('stays bounded on a package whose [Content_Types].xml or mimetype inflates to gigabytes', async () => {
     const bomb = deflateBomb(16_000_000);
     // The data is real: its first kilobyte alone inflates to about a megabyte.
     expect(zlib.inflateRawSync(bomb.subarray(0, 1024), { finishFlush: zlib.constants.Z_SYNC_FLUSH }).length).to.be.above(1_000_000);
@@ -134,7 +135,8 @@ describe('detection', () => {
     expect(Date.now() - started).to.be.below(5000);
     expect(after.arrayBuffers - before.arrayBuffers).to.be.below(64 * 1024 * 1024);
     expect(after.heapUsed - before.heapUsed).to.be.below(64 * 1024 * 1024);
-    expect([d.family, odf.family]).to.deep.equal(['office', 'office']);
+    // office-defuse cannot name either, so they are ZIP archives to archive-defuse, which stops the bomb when it reads.
+    expect([d.family, odf.family]).to.deep.equal(['archive', 'archive']);
   });
 
   it('keeps entry names, schemes and extensions out of plain objects', async () => {

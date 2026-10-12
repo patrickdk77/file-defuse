@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 - 2026-10-11
+
+- Detection asks each package with its own detect function, `detectOffice`, `detectPdf`, `detectImage`, `detectXml` and `detectArchive`, and keeps no copy of their format rules. A package names only what it reads, so routing and reading cannot disagree. A format takes the name and MIME type its package gives it, such as `text-flat-xml` for a flat OpenDocument text, `multipart/related` for MHT and mail, and `text/html` for HTA and SHTML.
+- A ZIP archive office-defuse cannot name goes to archive-defuse: an EPUB, a .zipx, a NuGet or StarOffice package, one cut short, and one with data in front. A compound file office-defuse cannot name, an installer included, has no family.
+- A PDF without a header goes to pdf-defuse when its name or declared type says PDF and it opens as one. A Brotli stream goes to archive-defuse when its name or declared type says Brotli. XML in EBCDIC goes to xml-defuse, which refuses it.
+- A ZIP archive behind other data starts at its first entry, where archive-defuse reads it, instead of at its end record.
+
 ## 0.1.0 - 2026-10-11
 
 First release.
