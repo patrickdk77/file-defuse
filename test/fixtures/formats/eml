@@ -1,0 +1,4 @@
+From: a@example.com
+Content-Type: multipart/mixed; boundary="b"
+
+--b--

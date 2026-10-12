@@ -1,0 +1,874 @@
+{
+  "about": "What each fixture is, the options it runs with, and the verdicts inspect and disarm must return. findings lists every finding of the inspection in order, as \"action CATEGORY/DETAIL\", with \" in \" and the attachment path for a finding from inside a file.",
+  "cases": [
+    {
+      "file": "clean.pdf",
+      "about": "A one-page PDF with nothing to remove.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": []
+    },
+    {
+      "file": "nested.pdf",
+      "about": "PDFs attached inside PDFs, four levels down. The innermost runs a script when it opens.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf > level2.pdf",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf > level2.pdf > level3.pdf",
+        "strip JAVASCRIPT/OPEN_ACTION in level1.pdf > level2.pdf > level3.pdf > level4.pdf"
+      ]
+    },
+    {
+      "file": "nested.pdf",
+      "about": "The same tree with no time to run.",
+      "options": {
+        "limits": {
+          "timeMs": 0
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject LIMIT/TIME"
+      ]
+    },
+    {
+      "file": "nested.pdf",
+      "about": "The same tree over the upload size limit.",
+      "options": {
+        "limits": {
+          "fileSize": 100
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject LIMIT/FILE_SIZE"
+      ]
+    },
+    {
+      "file": "loop.pdf",
+      "about": "A PDF whose attached file is the PDF itself. The default nesting depth stops it.",
+      "options": {},
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject LIMIT/NESTING_DEPTH"
+      ]
+    },
+    {
+      "file": "loop.pdf",
+      "about": "The same loop under a lower nesting depth.",
+      "options": {
+        "limits": {
+          "nestingDepth": 3
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject LIMIT/NESTING_DEPTH"
+      ]
+    },
+    {
+      "file": "deep.pdf",
+      "about": "Twelve clean PDFs, each attached inside the one before. The default nesting depth is 10.",
+      "options": {},
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject LIMIT/NESTING_DEPTH"
+      ]
+    },
+    {
+      "file": "deep.pdf",
+      "about": "The same tree with the nesting depth raised to 12.",
+      "options": {
+        "limits": {
+          "nestingDepth": 12
+        }
+      },
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf > level6.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf > level6.pdf > level7.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf > level6.pdf > level7.pdf > level8.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf > level6.pdf > level7.pdf > level8.pdf > level9.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf > level6.pdf > level7.pdf > level8.pdf > level9.pdf > level10.pdf",
+        "info EMBEDDED_FILE/PLUGIN_PASSED in level1.pdf > level2.pdf > level3.pdf > level4.pdf > level5.pdf > level6.pdf > level7.pdf > level8.pdf > level9.pdf > level10.pdf > level11.pdf"
+      ]
+    },
+    {
+      "file": "wide.pdf",
+      "about": "Twelve clean PDFs attached side by side.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED"
+      ]
+    },
+    {
+      "file": "wide.pdf",
+      "about": "The same twelve files under a limit of ten. The first ten are reported before the limit stops the run.",
+      "options": {
+        "limits": {
+          "files": 10
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "reject LIMIT/FILE_COUNT"
+      ]
+    },
+    {
+      "file": "bulky.pdf",
+      "about": "Three attached PDFs of about 256 KiB each, stored deflated.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED"
+      ]
+    },
+    {
+      "file": "bulky.pdf",
+      "about": "The same files under a decoded size limit that two of them fit.",
+      "options": {
+        "limits": {
+          "decodedBytes": 600000
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "reject LIMIT/DECODED_SIZE"
+      ]
+    },
+    {
+      "file": "passwords.pdf",
+      "about": "An encrypted PDF holding an encrypted PDF with a script. Without a password the upload does not open.",
+      "options": {},
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject ENCRYPTED/PASSWORD_REQUIRED"
+      ]
+    },
+    {
+      "file": "passwords.pdf",
+      "about": "The outer password alone. The inner PDF does not open and goes.",
+      "options": {
+        "password": "outer pass"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip ENCRYPTED/USER_PASSWORD",
+        "info ENCRYPTED/AES_256",
+        "strip EMBEDDED_FILE/PLUGIN_REMOVED",
+        "strip ENCRYPTED/PASSWORD_REQUIRED in inner.pdf"
+      ]
+    },
+    {
+      "file": "passwords.pdf",
+      "about": "Both passwords. Each file opens with its own and the inner script goes.",
+      "options": {
+        "password": [
+          "outer pass",
+          "inner pass"
+        ]
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip ENCRYPTED/USER_PASSWORD",
+        "info ENCRYPTED/AES_256",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "strip ENCRYPTED/USER_PASSWORD in inner.pdf",
+        "info ENCRYPTED/AES_256 in inner.pdf",
+        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf"
+      ]
+    },
+    {
+      "file": "passwords.pdf",
+      "about": "Both passwords in the other order.",
+      "options": {
+        "password": [
+          "inner pass",
+          "outer pass"
+        ]
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip ENCRYPTED/USER_PASSWORD",
+        "info ENCRYPTED/AES_256",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "strip ENCRYPTED/USER_PASSWORD in inner.pdf",
+        "info ENCRYPTED/AES_256 in inner.pdf",
+        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf"
+      ]
+    },
+    {
+      "file": "mixed.pdf",
+      "about": "A text file, which file-defuse's text rules keep, an executable, which no package reads and pdf-defuse removes, a damaged PNG, which img-defuse removes, and a PDF with a script.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "strip EMBEDDED_FILE/NO_PLUGIN",
+        "strip EMBEDDED_FILE/PLUGIN_REMOVED",
+        "strip STRUCTURE/BAD_LAYOUT in picture.png",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "strip JAVASCRIPT/OPEN_ACTION in report.pdf"
+      ]
+    },
+    {
+      "file": "unknown.bin",
+      "about": "Binary bytes with no signature, which no package reads.",
+      "options": {},
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject TYPE/NO_PACKAGE"
+      ]
+    },
+    {
+      "file": "unknown.bin",
+      "about": "The same bytes with the caller keeping files no package reads.",
+      "options": {
+        "actionOverrides": [
+          {
+            "category": "TYPE",
+            "detail": "NO_PACKAGE",
+            "action": "info"
+          }
+        ]
+      },
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info TYPE/NO_PACKAGE"
+      ]
+    },
+    {
+      "file": "embedded.docx",
+      "about": "A .docx that embeds a PDF and a .docx as packages. The PDF has a .docx attached, which embeds a PDF that runs a script, so the chain goes through both packages twice.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED in word/embeddings/report.pdf",
+        "info EMBEDDED/PLUGIN_SCRUBBED in word/embeddings/report.pdf > inner.docx",
+        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
+        "info EMBEDDED/PACKAGE in word/embeddings/report.pdf > inner.docx",
+        "info EMBEDDED/PACKAGE",
+        "info EMBEDDED/PLUGIN_PASSED",
+        "info EMBEDDED/PACKAGE"
+      ]
+    },
+    {
+      "file": "embedded.docx",
+      "about": "The same tree with the nesting depth one short of the innermost PDF.",
+      "options": {
+        "limits": {
+          "nestingDepth": 2
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject LIMIT/NESTING_DEPTH"
+      ]
+    },
+    {
+      "file": "embedded.docx",
+      "about": "The same tree under a limit of three files. The fourth, notes.docx, crosses it.",
+      "options": {
+        "limits": {
+          "files": 3
+        }
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED in word/embeddings/report.pdf",
+        "info EMBEDDED/PLUGIN_SCRUBBED in word/embeddings/report.pdf > inner.docx",
+        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
+        "info EMBEDDED/PACKAGE in word/embeddings/report.pdf > inner.docx",
+        "info EMBEDDED/PACKAGE",
+        "reject LIMIT/FILE_COUNT"
+      ]
+    },
+    {
+      "file": "passwords.docx",
+      "about": "A .docx encrypted with Agile encryption, embedding a PDF encrypted with another password. Without a password the upload does not open.",
+      "options": {},
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject ENCRYPTED/PASSWORD_REQUIRED"
+      ]
+    },
+    {
+      "file": "passwords.docx",
+      "about": "The Office password alone. The PDF does not open and goes.",
+      "options": {
+        "password": "office pass"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip ENCRYPTED/USER_PASSWORD",
+        "info ENCRYPTED/AES_256",
+        "strip EMBEDDED/PLUGIN_REMOVED",
+        "strip ENCRYPTED/PASSWORD_REQUIRED in word/embeddings/secret.pdf",
+        "strip EMBEDDED/PACKAGE"
+      ]
+    },
+    {
+      "file": "passwords.docx",
+      "about": "Both passwords. Each file opens with its own and the script in the PDF goes.",
+      "options": {
+        "password": [
+          "pdf pass",
+          "office pass"
+        ]
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip ENCRYPTED/USER_PASSWORD",
+        "info ENCRYPTED/AES_256",
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "strip ENCRYPTED/USER_PASSWORD in word/embeddings/secret.pdf",
+        "info ENCRYPTED/AES_256 in word/embeddings/secret.pdf",
+        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/secret.pdf",
+        "info EMBEDDED/PACKAGE"
+      ]
+    },
+    {
+      "file": "passwords.docx",
+      "about": "Both passwords in the other order.",
+      "options": {
+        "password": [
+          "office pass",
+          "pdf pass"
+        ]
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip ENCRYPTED/USER_PASSWORD",
+        "info ENCRYPTED/AES_256",
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "strip ENCRYPTED/USER_PASSWORD in word/embeddings/secret.pdf",
+        "info ENCRYPTED/AES_256 in word/embeddings/secret.pdf",
+        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/secret.pdf",
+        "info EMBEDDED/PACKAGE"
+      ]
+    },
+    {
+      "file": "archive.zip",
+      "about": "A ZIP archive with no Office marker, which office-defuse does not take and archive-defuse reads. Its text file goes to file-defuse's text rules.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info ENTRY/PLUGIN_PASSED"
+      ]
+    },
+    {
+      "file": "photo.jpg",
+      "about": "A JPEG whose EXIF block holds a camera make and a JPEG thumbnail with a comment. The thumbnail comes back through file-defuse to img-defuse.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info METADATA/EXIF",
+        "info METADATA/THUMBNAIL",
+        "info EMBEDDED_IMAGE/PLUGIN_PASSED",
+        "info METADATA/COMMENT in EXIF thumbnail"
+      ]
+    },
+    {
+      "file": "photo.jpg",
+      "about": "The same JPEG with stripMetadata from the top level. The EXIF block goes, and the thumbnail with it.",
+      "options": {
+        "stripMetadata": true
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info METADATA/EXIF",
+        "info METADATA/STRIPPED",
+        "info METADATA/THUMBNAIL"
+      ]
+    },
+    {
+      "file": "photo.jpg",
+      "about": "The same, with the image section turning stripMetadata off again.",
+      "options": {
+        "stripMetadata": true,
+        "image": {
+          "stripMetadata": false
+        }
+      },
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info METADATA/EXIF",
+        "info METADATA/THUMBNAIL",
+        "info EMBEDDED_IMAGE/PLUGIN_PASSED",
+        "info METADATA/COMMENT in EXIF thumbnail"
+      ]
+    },
+    {
+      "file": "images.pdf",
+      "about": "A PDF with an Info dictionary and two attached images, photo.jpg as above and a PNG with a text chunk.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info METADATA/EXIF in photo.jpg",
+        "info METADATA/THUMBNAIL in photo.jpg",
+        "info EMBEDDED_IMAGE/PLUGIN_PASSED in photo.jpg",
+        "info METADATA/COMMENT in photo.jpg > EXIF thumbnail",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info METADATA/TEXT in chart.png",
+        "info METADATA/INFO_DICTIONARY"
+      ]
+    },
+    {
+      "file": "images.pdf",
+      "about": "stripMetadata from the top level reaches the PDF and both images.",
+      "options": {
+        "stripMetadata": true
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info METADATA/STRIPPED",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "info METADATA/EXIF in photo.jpg",
+        "info METADATA/STRIPPED in photo.jpg",
+        "info METADATA/THUMBNAIL in photo.jpg",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "info METADATA/TEXT in chart.png",
+        "info METADATA/STRIPPED in chart.png"
+      ]
+    },
+    {
+      "file": "images.pdf",
+      "about": "The image section turns stripMetadata off for the images. pdf-defuse still removes the Info dictionary.",
+      "options": {
+        "stripMetadata": true,
+        "image": {
+          "stripMetadata": false
+        }
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info METADATA/STRIPPED",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info METADATA/EXIF in photo.jpg",
+        "info METADATA/THUMBNAIL in photo.jpg",
+        "info EMBEDDED_IMAGE/PLUGIN_PASSED in photo.jpg",
+        "info METADATA/COMMENT in photo.jpg > EXIF thumbnail",
+        "info EMBEDDED_FILE/PLUGIN_PASSED",
+        "info METADATA/TEXT in chart.png"
+      ]
+    },
+    {
+      "file": "photo.jp2",
+      "about": "A JP2 file whose EXIF box holds a JPEG thumbnail with a comment. The thumbnail comes back through file-defuse to img-defuse.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info METADATA/EXIF",
+        "info METADATA/THUMBNAIL",
+        "info EMBEDDED_IMAGE/PLUGIN_PASSED",
+        "info METADATA/COMMENT in EXIF thumbnail"
+      ]
+    },
+    {
+      "file": "photo.j2c",
+      "about": "A bare JPEG 2000 codestream with a comment.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info METADATA/COMMENT"
+      ]
+    },
+    {
+      "file": "photo.jxl",
+      "about": "A JPEG XL container with a gain map, a bare codestream that comes back through file-defuse to img-defuse.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": [
+        "info METADATA/SECONDARY_IMAGE",
+        "info EMBEDDED_IMAGE/PLUGIN_PASSED"
+      ]
+    },
+    {
+      "file": "picture.docx",
+      "about": "A .docx with a PNG under word/media that has a text chunk and bytes after its end. img-defuse removes the bytes.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "info METADATA/TEXT in word/media/image1.png",
+        "strip STRUCTURE/TRAILING_DATA in word/media/image1.png"
+      ]
+    },
+    {
+      "file": "flat.fodt",
+      "about": "A flat OpenDocument text document holding the same PNG as base64.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "info METADATA/TEXT in unnamed file",
+        "strip STRUCTURE/TRAILING_DATA in unnamed file"
+      ]
+    },
+    {
+      "file": "flat-opc.xml",
+      "about": "A Flat OPC Word document holding the same PNG as a part.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "info METADATA/TEXT in word/media/image1.png",
+        "strip STRUCTURE/TRAILING_DATA in word/media/image1.png"
+      ]
+    },
+    {
+      "file": "pages.xps",
+      "about": "An XPS document whose page paints the same PNG.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "info METADATA/TEXT in Resources/image.png",
+        "strip STRUCTURE/TRAILING_DATA in Resources/image.png"
+      ]
+    },
+    {
+      "file": "field.rtf",
+      "about": "An RTF document with a DDEAUTO field.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip DDE/FIELD"
+      ]
+    },
+    {
+      "file": "object.rtf",
+      "about": "An RTF document whose Packager object holds a PDF with a script.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "info EMBEDDED/OLE_OBJECT"
+      ]
+    },
+    {
+      "file": "message.msg",
+      "about": "An Outlook message with a PDF attachment that runs a script.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "info EMBEDDED/ATTACHMENT"
+      ]
+    },
+    {
+      "file": "notes.txt",
+      "about": "Plain UTF-8 text.",
+      "options": {},
+      "inspect": "clean",
+      "disarm": "clean",
+      "findings": []
+    },
+    {
+      "file": "data.csv",
+      "about": "A CSV file with cells a spreadsheet runs as formulas and a bidirectional override, read with no name, so only the text rules apply.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TEXT/BIDI_CONTROL"
+      ]
+    },
+    {
+      "file": "data.csv",
+      "about": "The same file named data.csv, so the CSV rule applies too.",
+      "options": {
+        "name": "data.csv"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/BIDI_CONTROL"
+      ]
+    },
+    {
+      "file": "data.csv",
+      "about": "The same file declared text/csv.",
+      "options": {
+        "declaredType": "text/csv"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/FORMULA",
+        "strip TEXT/BIDI_CONTROL"
+      ]
+    },
+    {
+      "file": "readme.md",
+      "about": "Markdown with javascript:, data: and vbscript: links in inline, image, reference and autolink form, and one in a code block and one in a code span, which are not links.",
+      "options": {
+        "name": "readme.md"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip LINK/SCRIPT_URL",
+        "strip LINK/DATA_URL",
+        "strip LINK/SCRIPT_URL",
+        "strip LINK/SCRIPT_URL",
+        "strip LINK/SCRIPT_URL"
+      ]
+    },
+    {
+      "file": "unclosed.csv",
+      "about": "A CSV file whose last quoted cell never closes.",
+      "options": {
+        "name": "unclosed.csv"
+      },
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject TEXT/UNCLOSED_QUOTE"
+      ]
+    },
+    {
+      "file": "legacy.csv",
+      "about": "A CSV file in an 8-bit encoding with a formula cell.",
+      "options": {
+        "name": "legacy.csv"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TEXT/FORMULA",
+        "info TEXT/UNNAMED_ENCODING"
+      ]
+    },
+    {
+      "file": "utf16.txt",
+      "about": "UTF-16 text with a byte order mark and a right-to-left override.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TEXT/BIDI_CONTROL",
+        "strip TEXT/BIDI_CONTROL"
+      ]
+    },
+    {
+      "file": "late.txt",
+      "about": "UTF-8 text with a byte order mark whose first 64 KiB are clean, then a byte that is not UTF-8, a bell and a C1 control.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TEXT/ENCODING",
+        "strip TEXT/CONTROL_CHARACTER",
+        "strip TEXT/CONTROL_CHARACTER"
+      ]
+    },
+    {
+      "file": "jpeg-zip.bin",
+      "about": "A JPEG with a ZIP archive after it, without a name. The JPEG at the start wins and img-defuse removes the archive.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TYPE/POLYGLOT",
+        "info METADATA/COMMENT",
+        "strip STRUCTURE/TRAILING_DATA",
+        "strip POLYGLOT/ZIP"
+      ]
+    },
+    {
+      "file": "jpeg-zip.bin",
+      "about": "The same file named photo.jpg.",
+      "options": {
+        "name": "photo.jpg"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TYPE/POLYGLOT",
+        "info METADATA/COMMENT",
+        "strip STRUCTURE/TRAILING_DATA",
+        "strip POLYGLOT/ZIP"
+      ]
+    },
+    {
+      "file": "jpeg-zip.bin",
+      "about": "The same file named photo.zip. The archive wins, and archive-defuse removes the JPEG in front of it.",
+      "options": {
+        "name": "photo.zip"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TYPE/POLYGLOT",
+        "strip STRUCTURE/OFFSET_SHIFT",
+        "strip STRUCTURE/LEADING_BYTES",
+        "strip STRUCTURE/POLYGLOT",
+        "info ENTRY/PLUGIN_PASSED"
+      ]
+    },
+    {
+      "file": "pdf-zip.bin",
+      "about": "A PDF with a ZIP archive after it, without a name. pdf-defuse's rewrite leaves the archive out.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TYPE/POLYGLOT",
+        "strip CORRUPTED/TRAILING_BYTES"
+      ]
+    },
+    {
+      "file": "pdf-zip.bin",
+      "about": "The same file named report.zip. The archive wins, and archive-defuse removes the PDF in front of it.",
+      "options": {
+        "name": "report.zip"
+      },
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip TYPE/POLYGLOT",
+        "strip STRUCTURE/OFFSET_SHIFT",
+        "strip STRUCTURE/LEADING_BYTES",
+        "strip STRUCTURE/POLYGLOT",
+        "info ENTRY/PLUGIN_PASSED"
+      ]
+    },
+    {
+      "file": "inseparable.jpg",
+      "about": "A JPEG whose quantization table holds a PDF header in the first 1024 bytes. The table is image data, so the PDF part cannot be removed.",
+      "options": {},
+      "inspect": "rejected",
+      "disarm": "rejected",
+      "findings": [
+        "reject TYPE/POLYGLOT",
+        "reject POLYGLOT/IMAGE_DATA"
+      ]
+    },
+    {
+      "file": "polyglots.pdf",
+      "about": "A PDF with the JPEG and ZIP polyglot attached twice, as photo.jpg and as photo.zip. Each name chooses the format its file is handled as.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "strip TYPE/POLYGLOT in photo.jpg",
+        "info METADATA/COMMENT in photo.jpg",
+        "strip STRUCTURE/TRAILING_DATA in photo.jpg",
+        "strip POLYGLOT/ZIP in photo.jpg",
+        "info EMBEDDED_FILE/TYPE_MISMATCH",
+        "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
+        "strip TYPE/POLYGLOT in photo.zip",
+        "strip STRUCTURE/OFFSET_SHIFT in photo.zip",
+        "strip STRUCTURE/LEADING_BYTES in photo.zip",
+        "strip STRUCTURE/POLYGLOT in photo.zip",
+        "info ENTRY/PLUGIN_PASSED in photo.zip"
+      ]
+    },
+    {
+      "file": "small-attachment.msg",
+      "about": "An Outlook message with a small PDF attachment. office-defuse writes the defused PDF past the first 1024 bytes of its output, so the output is not also a PDF.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info EMBEDDED/PLUGIN_SCRUBBED",
+        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "info EMBEDDED/ATTACHMENT"
+      ]
+    }
+  ]
+}

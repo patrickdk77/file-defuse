@@ -1,0 +1,91 @@
+{
+  "name": "@patrickdk77/file-defuse",
+  "version": "0.1.0",
+  "description": "Sanitize uploads with the defuse family. Sniffs the content, hands the file to the package that reads it, routes every file found inside back through the same router, and limits the whole tree: size, depth, file count, decoded bytes and time.",
+  "license": "MIT",
+  "author": "patrickdk77",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "file-defuse": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('build-test',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json && node scripts/write-esm-wrapper.js",
+    "build:test": "tsc -p tsconfig.test.json",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "npm run lint && npm run build && npm run build:test && mocha --timeout 120000 \"build-test/test/**/*.test.js\"",
+    "prepare": "husky || true",
+    "prepublishOnly": "npm run clean && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patrickdk77/file-defuse.git"
+  },
+  "bugs": {
+    "url": "https://github.com/patrickdk77/file-defuse/issues"
+  },
+  "homepage": "https://github.com/patrickdk77/file-defuse",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "sanitize",
+    "sanitise",
+    "scrub",
+    "disarm",
+    "defuse",
+    "defang",
+    "cdr",
+    "upload",
+    "security",
+    "inspect",
+    "scanner",
+    "detect",
+    "pdf",
+    "office",
+    "image",
+    "attachments",
+    "nested"
+  ],
+  "dependencies": {
+    "@patrickdk77/archive-defuse": "^0.1.0",
+    "@patrickdk77/img-defuse": "^0.2.0",
+    "@patrickdk77/office-defuse": "^0.2.0",
+    "@patrickdk77/pdf-defuse": "^0.2.2",
+    "@patrickdk77/xml-defuse": "^0.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^18.19.130",
+    "chai": "^6.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "mocha": "^12.0.3",
+    "typescript": "^7.0.2"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs,json,jsonc}": "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
+  }
+}

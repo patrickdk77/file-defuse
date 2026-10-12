@@ -1,0 +1,9 @@
+name,amount,note
+alice,-5,plain number
+bob,=1+2,formula
+carol,"=HYPERLINK(""http://example.com"")",quoted formula
+dave,+cmd|' /c calc'!A0,signed formula
+erin,@SUM(A1),at sign
+frank,-2+3,signed formula
+grace,+1.5e3,plain number
+ivan,‮evil,bidi control

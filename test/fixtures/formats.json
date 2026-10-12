@@ -1,0 +1,548 @@
+{
+  "pdf": {
+    "mimeType": "application/pdf",
+    "extension": "pdf",
+    "family": "pdf",
+    "heuristic": false
+  },
+  "pdf-late": {
+    "mimeType": "application/pdf",
+    "extension": "pdf",
+    "family": "pdf",
+    "heuristic": false
+  },
+  "docx": {
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "extension": "docx",
+    "family": "office",
+    "heuristic": false
+  },
+  "docm": {
+    "mimeType": "application/vnd.ms-word.document.macroEnabled.12",
+    "extension": "docm",
+    "family": "office",
+    "heuristic": false
+  },
+  "xlsx": {
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "extension": "xlsx",
+    "family": "office",
+    "heuristic": false
+  },
+  "xlsb": {
+    "mimeType": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+    "extension": "xlsb",
+    "family": "office",
+    "heuristic": false
+  },
+  "pptx": {
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "extension": "pptx",
+    "family": "office",
+    "heuristic": false
+  },
+  "vsdx": {
+    "mimeType": "application/vnd.ms-visio.drawing",
+    "extension": "vsdx",
+    "family": "office",
+    "heuristic": false
+  },
+  "opc-other": {
+    "mimeType": "application/zip",
+    "extension": "zip",
+    "family": "office",
+    "heuristic": false
+  },
+  "xps": {
+    "mimeType": "application/vnd.ms-xpsdocument",
+    "extension": "xps",
+    "family": "office",
+    "heuristic": false
+  },
+  "oxps": {
+    "mimeType": "application/oxps",
+    "extension": "oxps",
+    "family": "office",
+    "heuristic": false
+  },
+  "odt": {
+    "mimeType": "application/vnd.oasis.opendocument.text",
+    "extension": "odt",
+    "family": "office",
+    "heuristic": false
+  },
+  "ods": {
+    "mimeType": "application/vnd.oasis.opendocument.spreadsheet",
+    "extension": "ods",
+    "family": "office",
+    "heuristic": false
+  },
+  "odf-manifest": {
+    "mimeType": "application/vnd.oasis.opendocument.presentation",
+    "extension": "odp",
+    "family": "office",
+    "heuristic": false
+  },
+  "sun-xml": {
+    "mimeType": "application/zip",
+    "extension": "zip",
+    "family": "office",
+    "heuristic": false
+  },
+  "epub": {
+    "mimeType": "application/epub+zip",
+    "extension": "epub",
+    "family": "archive",
+    "heuristic": false
+  },
+  "zip": {
+    "mimeType": "application/zip",
+    "extension": "zip",
+    "family": "archive",
+    "heuristic": false
+  },
+  "zipx": {
+    "mimeType": "application/x-zipx",
+    "extension": "zipx",
+    "family": "archive",
+    "heuristic": true
+  },
+  "zip-no-directory": {
+    "mimeType": "application/zip",
+    "extension": "zip",
+    "family": "office",
+    "heuristic": true
+  },
+  "encrypted-ooxml": {
+    "mimeType": "application/x-ole-storage",
+    "extension": "",
+    "family": "office",
+    "heuristic": false
+  },
+  "doc": {
+    "mimeType": "application/msword",
+    "extension": "doc",
+    "family": "office",
+    "heuristic": false
+  },
+  "xls": {
+    "mimeType": "application/vnd.ms-excel",
+    "extension": "xls",
+    "family": "office",
+    "heuristic": false
+  },
+  "xls-book": {
+    "mimeType": "application/vnd.ms-excel",
+    "extension": "xls",
+    "family": "office",
+    "heuristic": false
+  },
+  "ppt": {
+    "mimeType": "application/vnd.ms-powerpoint",
+    "extension": "ppt",
+    "family": "office",
+    "heuristic": false
+  },
+  "vsd": {
+    "mimeType": "application/vnd.visio",
+    "extension": "vsd",
+    "family": "office",
+    "heuristic": false
+  },
+  "msg": {
+    "mimeType": "application/vnd.ms-outlook",
+    "extension": "msg",
+    "family": "office",
+    "heuristic": false
+  },
+  "oft": {
+    "mimeType": "application/vnd.ms-outlook",
+    "extension": "oft",
+    "family": "office",
+    "heuristic": false
+  },
+  "pub": {
+    "mimeType": "application/x-mspublisher",
+    "extension": "pub",
+    "family": "office",
+    "heuristic": false
+  },
+  "mpp": {
+    "mimeType": "application/vnd.ms-project",
+    "extension": "mpp",
+    "family": "office",
+    "heuristic": false
+  },
+  "cfb-two-formats": {
+    "mimeType": "application/x-ole-storage",
+    "extension": "cfb",
+    "family": "office",
+    "heuristic": false
+  },
+  "cfb-unreadable": {
+    "mimeType": "application/x-ole-storage",
+    "extension": "cfb",
+    "family": "office",
+    "heuristic": false
+  },
+  "msi": {
+    "mimeType": "application/x-msi",
+    "extension": "msi",
+    "family": null,
+    "heuristic": false
+  },
+  "cfb-other": {
+    "mimeType": "application/x-ole-storage",
+    "extension": "cfb",
+    "family": null,
+    "heuristic": false
+  },
+  "rtf": {
+    "mimeType": "application/rtf",
+    "extension": "rtf",
+    "family": "office",
+    "heuristic": false
+  },
+  "fodt": {
+    "mimeType": "application/vnd.oasis.opendocument.text",
+    "extension": "fodt",
+    "family": "office",
+    "heuristic": false
+  },
+  "flat-opc": {
+    "mimeType": "application/xml",
+    "extension": "xml",
+    "family": "office",
+    "heuristic": false
+  },
+  "png": {
+    "mimeType": "image/png",
+    "extension": "png",
+    "family": "image",
+    "heuristic": false
+  },
+  "jpeg": {
+    "mimeType": "image/jpeg",
+    "extension": "jpg",
+    "family": "image",
+    "heuristic": false
+  },
+  "gif": {
+    "mimeType": "image/gif",
+    "extension": "gif",
+    "family": "image",
+    "heuristic": false
+  },
+  "webp": {
+    "mimeType": "image/webp",
+    "extension": "webp",
+    "family": "image",
+    "heuristic": false
+  },
+  "tiff": {
+    "mimeType": "image/tiff",
+    "extension": "tif",
+    "family": "image",
+    "heuristic": false
+  },
+  "bigtiff": {
+    "mimeType": "image/tiff",
+    "extension": "tif",
+    "family": "image",
+    "heuristic": false
+  },
+  "bmp": {
+    "mimeType": "image/bmp",
+    "extension": "bmp",
+    "family": "image",
+    "heuristic": false
+  },
+  "ico": {
+    "mimeType": "image/vnd.microsoft.icon",
+    "extension": "ico",
+    "family": "image",
+    "heuristic": false
+  },
+  "cur": {
+    "mimeType": "image/x-win-bitmap",
+    "extension": "cur",
+    "family": "image",
+    "heuristic": false
+  },
+  "jp2": {
+    "mimeType": "image/jp2",
+    "extension": "jp2",
+    "family": "image",
+    "heuristic": false
+  },
+  "j2c": {
+    "mimeType": "image/j2c",
+    "extension": "j2c",
+    "family": "image",
+    "heuristic": false
+  },
+  "jxl": {
+    "mimeType": "image/jxl",
+    "extension": "jxl",
+    "family": "image",
+    "heuristic": false
+  },
+  "jxl-container": {
+    "mimeType": "image/jxl",
+    "extension": "jxl",
+    "family": "image",
+    "heuristic": false
+  },
+  "emf": {
+    "mimeType": "image/emf",
+    "extension": "emf",
+    "family": "image",
+    "heuristic": false
+  },
+  "wmf": {
+    "mimeType": "image/wmf",
+    "extension": "wmf",
+    "family": "image",
+    "heuristic": false
+  },
+  "wmf-bare": {
+    "mimeType": "image/wmf",
+    "extension": "wmf",
+    "family": "image",
+    "heuristic": false
+  },
+  "psd": {
+    "mimeType": "image/vnd.adobe.photoshop",
+    "extension": "psd",
+    "family": "image",
+    "heuristic": false
+  },
+  "psb": {
+    "mimeType": "image/vnd.adobe.photoshop",
+    "extension": "psb",
+    "family": "image",
+    "heuristic": false
+  },
+  "xml": {
+    "mimeType": "application/xml",
+    "extension": "xml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "xml-utf16le-bom": {
+    "mimeType": "application/xml",
+    "extension": "xml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "xml-utf16be": {
+    "mimeType": "application/xml",
+    "extension": "xml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "xml-utf32le": {
+    "mimeType": "application/xml",
+    "extension": "xml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "xml-ebcdic": {
+    "mimeType": "application/xml",
+    "extension": "xml",
+    "family": "xml",
+    "heuristic": true
+  },
+  "html": {
+    "mimeType": "text/html",
+    "extension": "html",
+    "family": "xml",
+    "heuristic": false
+  },
+  "html-doctype": {
+    "mimeType": "text/html",
+    "extension": "html",
+    "family": "xml",
+    "heuristic": false
+  },
+  "html-comment": {
+    "mimeType": "text/html",
+    "extension": "html",
+    "family": "xml",
+    "heuristic": false
+  },
+  "xhtml": {
+    "mimeType": "application/xhtml+xml",
+    "extension": "xhtml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "svg": {
+    "mimeType": "image/svg+xml",
+    "extension": "svg",
+    "family": "xml",
+    "heuristic": false
+  },
+  "xslt": {
+    "mimeType": "application/xslt+xml",
+    "extension": "xsl",
+    "family": "xml",
+    "heuristic": false
+  },
+  "mht": {
+    "mimeType": "multipart/related",
+    "extension": "mht",
+    "family": "xml",
+    "heuristic": false
+  },
+  "mht-single": {
+    "mimeType": "message/rfc822",
+    "extension": "mht",
+    "family": "xml",
+    "heuristic": false
+  },
+  "eml": {
+    "mimeType": "message/rfc822",
+    "extension": "eml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "hta": {
+    "mimeType": "application/hta",
+    "extension": "hta",
+    "family": "xml",
+    "heuristic": false
+  },
+  "shtml": {
+    "mimeType": "text/x-server-parsed-html",
+    "extension": "shtml",
+    "family": "xml",
+    "heuristic": false
+  },
+  "gzip": {
+    "mimeType": "application/gzip",
+    "extension": "gz",
+    "family": "archive",
+    "heuristic": false
+  },
+  "bzip2": {
+    "mimeType": "application/x-bzip2",
+    "extension": "bz2",
+    "family": "archive",
+    "heuristic": false
+  },
+  "zstd": {
+    "mimeType": "application/zstd",
+    "extension": "zst",
+    "family": "archive",
+    "heuristic": false
+  },
+  "zstd-skippable": {
+    "mimeType": "application/zstd",
+    "extension": "zst",
+    "family": "archive",
+    "heuristic": false
+  },
+  "tar-ustar": {
+    "mimeType": "application/x-tar",
+    "extension": "tar",
+    "family": "archive",
+    "heuristic": false
+  },
+  "tar-gnu": {
+    "mimeType": "application/x-tar",
+    "extension": "tar",
+    "family": "archive",
+    "heuristic": false
+  },
+  "tar-old": {
+    "mimeType": "application/x-tar",
+    "extension": "tar",
+    "family": "archive",
+    "heuristic": true
+  },
+  "cab": {
+    "mimeType": "application/vnd.ms-cab-compressed",
+    "extension": "cab",
+    "family": "archive",
+    "heuristic": false
+  },
+  "7z": {
+    "mimeType": "application/x-7z-compressed",
+    "extension": "7z",
+    "family": "archive",
+    "heuristic": false
+  },
+  "xz": {
+    "mimeType": "application/x-xz",
+    "extension": "xz",
+    "family": "archive",
+    "heuristic": false
+  },
+  "lzma": {
+    "mimeType": "application/x-lzma",
+    "extension": "lzma",
+    "family": "archive",
+    "heuristic": true
+  },
+  "text-utf8": {
+    "mimeType": "text/plain",
+    "extension": "txt",
+    "family": "text",
+    "heuristic": false
+  },
+  "text-utf16-bom": {
+    "mimeType": "text/plain",
+    "extension": "txt",
+    "family": "text",
+    "heuristic": false
+  },
+  "text-utf32-bom": {
+    "mimeType": "text/plain",
+    "extension": "txt",
+    "family": "text",
+    "heuristic": false
+  },
+  "text-8bit": {
+    "mimeType": "text/plain",
+    "extension": "txt",
+    "family": "text",
+    "heuristic": true
+  },
+  "rar": {
+    "mimeType": "application/vnd.rar",
+    "extension": "rar",
+    "family": null,
+    "heuristic": false
+  },
+  "elf": {
+    "mimeType": "application/x-executable",
+    "extension": "elf",
+    "family": null,
+    "heuristic": false
+  },
+  "exe": {
+    "mimeType": "application/x-msdownload",
+    "extension": "exe",
+    "family": null,
+    "heuristic": false
+  },
+  "postscript": {
+    "mimeType": "application/postscript",
+    "extension": "ps",
+    "family": null,
+    "heuristic": false
+  },
+  "sylk": {
+    "mimeType": "application/x-sylk",
+    "extension": "slk",
+    "family": null,
+    "heuristic": false
+  },
+  "binary": {
+    "mimeType": "application/octet-stream",
+    "extension": "",
+    "family": null,
+    "heuristic": false
+  }
+}
