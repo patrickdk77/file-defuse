@@ -1,18 +1,27 @@
-import type { TextSubtype } from './detect';
+import { contentTextTypes, type DetectHints, HEAD_BYTES, type TextSubtype, textTypesOf } from './detect';
 import { bomOf, type TextEncoding } from './detect-text';
 import { FindingFactory } from './findings';
+import { JSON_DEPTH, JsonScanner } from './json';
 import { DEFAULT_MEMORY_THRESHOLD, Spill } from './spill';
 import { type ByteSink, type ByteSource, FileCategory as C, type ContainedFilePlugin, FileDetail as D, type DefuseFinding, type FileActionOverride, type FileFinding, FileRisk } from './types';
+import { yamlRules } from './yaml';
 
 /** Options for text files, the `text` section. */
 export interface TextOptions {
-  /** Changes the action of the text rules' findings: TEXT, LINK and PROCESSING. */
+  /** Changes the action of the text rules' findings: TEXT, LINK, JSON, SOURCEMAP, YAML and PROCESSING. */
   actionOverrides?: FileActionOverride[];
   scoreWeights?: Array<{ category: string; detail?: string; weight: number }>;
   scoreBands?: { low: number; medium: number; high: number; critical: number };
   limits?: {
     /** Milliseconds for one text file, its rewrite and the check of the rewrite. Not enforced unless set. */
     timeMs?: number;
+    /** JSON and YAML nested deeper than this are rejected. Default 500, libmagic's limit for JSON. */
+    depth?: number;
+    /**
+     * YAML whose aliases make it more than this many times as large as written, and over 10,000 nodes, is rejected.
+     * Default 100.
+     */
+    aliasExpansion?: number;
   };
   /** Directory for the rewrite's temporary file. */
   tempDir?: string;
@@ -511,6 +520,413 @@ class Markdown {
   }
 }
 
+/** A character as the decoder passed it on, with the line it sits on, held until a rule knows what it belongs to. */
+type Held = [cp: number, at: number, length: number, kind: number, line: number];
+
+const ESC = 0x1b;
+/** The C1 controls that open a sequence, as one character, and what each opens. */
+const C1_OPENERS = new Map<number, string>([
+  [0x9b, 'CSI'],
+  [0x9d, 'OSC'],
+  [0x90, 'DCS'],
+  [0x98, 'SOS'],
+  [0x9e, 'PM'],
+  [0x9f, 'APC'],
+]);
+/** What the character after an escape opens, for the sequences that run to a terminator. */
+const ESC_STRINGS = new Map<number, string>([
+  [0x5d, 'OSC'],
+  [0x50, 'DCS'],
+  [0x58, 'SOS'],
+  [0x5e, 'PM'],
+  [0x5f, 'APC'],
+]);
+/** A control sequence longer than this is not one, and a string sequence this long without its end stops there. */
+const MAX_CSI = 256;
+const MAX_STRING = 65536;
+
+const T_NONE = 0;
+const T_ESC = 1;
+const T_INTER = 2;
+const T_CSI = 3;
+const T_STRING = 4;
+
+/**
+ * Finds ANSI and ECMA-48 escape sequences: a control sequence (CSI), a string sequence (OSC, DCS, SOS, PM and APC)
+ * up to its BEL or string terminator, and a two-character escape. It takes their characters from the rules after it.
+ * A sequence that ends is `done` whole. An escape that opens nothing goes on as a character. A string sequence with
+ * no end loses only its opening, and its characters go on as text, which is all a reader without a terminal sees.
+ */
+class TerminalEscapes {
+  private state = T_NONE;
+  private kind = '';
+  private start = -1;
+  private openEnd = 0;
+  private line = 0;
+  private held: Held[] = [];
+  /** An escape inside a string sequence, which ends it or opens the next. */
+  private inner?: Held;
+
+  constructor(
+    /** A sequence found: whole from `start` to `end`, or with `whole` false only its opening, up to `end`. */
+    private readonly done: (kind: string, start: number, end: number, whole: boolean, line: number) => void,
+    /** A character that belongs to no sequence. */
+    private readonly pass: (h: Held) => void,
+  ) {}
+
+  get holding(): number {
+    return this.state === T_NONE ? Number.POSITIVE_INFINITY : this.start;
+  }
+
+  private reset(): void {
+    this.state = T_NONE;
+    this.held = [];
+    this.inner = undefined;
+  }
+
+  private open(state: number, kind: string, h: Held): void {
+    this.state = state;
+    this.kind = kind;
+    this.start = h[1];
+    this.openEnd = h[1] + h[2];
+    this.line = h[4];
+    this.held = [h];
+  }
+
+  /** The held characters go on as text, and the character after them is read afresh. */
+  private release(next?: Held): void {
+    const held = this.held;
+    this.reset();
+    for (const h of held) this.pass(h);
+    if (next) this.push(next);
+  }
+
+  /** The sequence is over at `end`. A string sequence that stops without its end keeps what follows its opening as text. */
+  private finish(end: number, whole: boolean): void {
+    const held = this.held;
+    const openEnd = this.openEnd;
+    this.done(this.kind, this.start, end, whole, this.line);
+    this.reset();
+    if (!whole) for (const h of held) if (h[1] >= openEnd) this.pass(h);
+  }
+
+  /** True when the character went to a sequence, or waits to see whether it does. */
+  push(h: Held): boolean {
+    const [cp, at, length, kind] = h;
+    const end = at + length;
+    switch (this.state) {
+      case T_NONE: {
+        if (kind !== OK) return false;
+        if (cp === ESC) this.open(T_ESC, 'ESC', h);
+        else if (C1_OPENERS.has(cp)) this.open(cp === 0x9b ? T_CSI : T_STRING, C1_OPENERS.get(cp) ?? '', h);
+        else return false;
+        return true;
+      }
+      case T_ESC:
+        if (kind === OK && cp === 0x5b) {
+          this.state = T_CSI;
+          this.kind = 'CSI';
+        } else if (kind === OK && ESC_STRINGS.has(cp)) {
+          this.state = T_STRING;
+          this.kind = ESC_STRINGS.get(cp) ?? '';
+        } else if (kind === OK && cp >= 0x20 && cp <= 0x2f) this.state = T_INTER;
+        else if (kind === OK && cp >= 0x30 && cp <= 0x7e) {
+          this.held.push(h);
+          this.finish(end, true);
+          return true;
+        } else {
+          this.release(h);
+          return true;
+        }
+        this.held.push(h);
+        this.openEnd = end;
+        return true;
+      case T_INTER:
+        if (kind === OK && cp >= 0x20 && cp <= 0x2f) this.held.push(h);
+        else if (kind === OK && cp >= 0x30 && cp <= 0x7e) {
+          this.held.push(h);
+          this.finish(end, true);
+        } else this.release(h);
+        return true;
+      case T_CSI:
+        if (kind === OK && cp >= 0x20 && cp <= 0x3f && this.held.length < MAX_CSI) {
+          this.held.push(h);
+          return true;
+        }
+        if (kind === OK && cp >= 0x40 && cp <= 0x7e) {
+          this.held.push(h);
+          this.finish(end, true);
+          return true;
+        }
+        // A control sequence cut off by anything else ends before it, and that character is read afresh.
+        this.finish(at, true);
+        this.push(h);
+        return true;
+      case T_STRING:
+        if (this.inner) {
+          const esc = this.inner;
+          if (kind === OK && cp === 0x5c) {
+            this.held.push(h);
+            this.finish(end, true);
+            return true;
+          }
+          // An escape that is not a string terminator ends the string before it and opens a sequence of its own.
+          this.held.pop();
+          this.finish(esc[1], true);
+          this.push(esc);
+          this.push(h);
+          return true;
+        }
+        if (kind === OK && (cp === 0x07 || cp === 0x9c)) {
+          this.held.push(h);
+          this.finish(end, true);
+          return true;
+        }
+        this.held.push(h);
+        if (kind === OK && cp === ESC) this.inner = h;
+        else if (this.held.length > MAX_STRING) this.finish(this.openEnd, false);
+        return true;
+      default:
+        throw new Error(`Escape reader in unknown state ${this.state}`);
+    }
+  }
+
+  end(): void {
+    if (this.state === T_ESC || this.state === T_INTER) this.release();
+    else if (this.state === T_CSI) this.finish(this.held[this.held.length - 1][1] + this.held[this.held.length - 1][2], true);
+    else if (this.state === T_STRING) this.finish(this.openEnd, false);
+  }
+}
+
+/** Elements that run script, load a page or a plugin, or change where the page's links and forms go, by name alone. */
+const SCRIPTING_TAGS = new Set(['script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet', 'svg', 'math', 'base', 'form', 'link', 'style', 'portal']);
+/** A tag longer than this is read as far as it goes. */
+const MAX_TAG = 65536;
+const M_NONE = 0;
+const M_OPEN = 1;
+const M_NAME = 2;
+const M_BEFORE_ATTR = 3;
+const M_ATTR = 4;
+const M_AFTER_ATTR = 5;
+const M_BEFORE_VALUE = 6;
+const M_DOUBLE = 7;
+const M_SINGLE = 8;
+const M_UNQUOTED = 9;
+const isSpace = (c: number) => c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0c || c === 0x0d;
+const isLetter = (c: number) => (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
+
+/**
+ * Reads tags the way the HTML tokenizer does: a `<` followed by a letter opens one, attribute values in quotes may
+ * hold `>`, and a `>` outside them closes it. `found` gets each tag that runs script once a browser shows the text as
+ * HTML: an element in SCRIPTING_TAGS, a `meta` with `http-equiv`, an event handler attribute, or an attribute whose
+ * value is a javascript: or vbscript: URL.
+ */
+class MarkupTags {
+  private state = M_NONE;
+  private lt = 0;
+  private ltEnd = 0;
+  private line = 0;
+  private name = '';
+  private attr = '';
+  private value = '';
+  private attrs: Array<{ name: string; value?: string }> = [];
+  private read = 0;
+
+  constructor(private readonly found: (tag: string, ltEnd: number, line: number) => void) {}
+
+  get holding(): number {
+    return this.state === M_NONE ? Number.POSITIVE_INFINITY : this.lt;
+  }
+
+  private addAttr(value?: string): void {
+    if (this.attr) this.attrs.push({ name: this.attr, value });
+    this.attr = '';
+    this.value = '';
+  }
+
+  private finish(): void {
+    const name = this.name;
+    const attrs = this.attrs;
+    this.state = M_NONE;
+    const scripting =
+      SCRIPTING_TAGS.has(name) ||
+      (name === 'meta' && attrs.some(a => a.name === 'http-equiv')) ||
+      attrs.some(a => /^on./.test(a.name)) ||
+      attrs.some(a => {
+        const s = a.value === undefined ? undefined : schemeAt(a.value, 0)?.scheme;
+        return s === 'javascript' || s === 'vbscript';
+      });
+    if (scripting) this.found(name, this.ltEnd, this.line);
+  }
+
+  push(cp: number, at: number, length: number, line: number): void {
+    if (this.state === M_NONE) {
+      if (cp === 0x3c) {
+        this.state = M_OPEN;
+        this.lt = at;
+        this.ltEnd = at + length;
+        this.line = line;
+      }
+      return;
+    }
+    if (this.state === M_OPEN) {
+      if (isLetter(cp)) {
+        this.state = M_NAME;
+        this.name = String.fromCharCode(cp).toLowerCase();
+        this.attrs = [];
+        this.attr = '';
+        this.read = 0;
+      } else {
+        this.state = M_NONE;
+        this.push(cp, at, length, line);
+      }
+      return;
+    }
+    const ch = String.fromCodePoint(cp);
+    const lower = ch.toLowerCase();
+    if (++this.read > MAX_TAG) {
+      this.addAttr(this.state === M_DOUBLE || this.state === M_SINGLE || this.state === M_UNQUOTED ? this.value : undefined);
+      this.finish();
+      return;
+    }
+    switch (this.state) {
+      case M_NAME:
+        if (isSpace(cp) || cp === 0x2f) this.state = M_BEFORE_ATTR;
+        else if (cp === 0x3e) this.finish();
+        else this.name += lower;
+        return;
+      case M_BEFORE_ATTR:
+        if (cp === 0x3e) this.finish();
+        else if (!isSpace(cp) && cp !== 0x2f) {
+          this.state = M_ATTR;
+          this.attr = lower;
+        }
+        return;
+      case M_ATTR:
+        if (isSpace(cp)) this.state = M_AFTER_ATTR;
+        else if (cp === 0x2f) {
+          this.addAttr();
+          this.state = M_BEFORE_ATTR;
+        } else if (cp === 0x3d) this.state = M_BEFORE_VALUE;
+        else if (cp === 0x3e) {
+          this.addAttr();
+          this.finish();
+        } else this.attr += lower;
+        return;
+      case M_AFTER_ATTR:
+        if (isSpace(cp)) return;
+        if (cp === 0x3d) this.state = M_BEFORE_VALUE;
+        else if (cp === 0x3e) {
+          this.addAttr();
+          this.finish();
+        } else {
+          this.addAttr();
+          if (cp === 0x2f) this.state = M_BEFORE_ATTR;
+          else {
+            this.state = M_ATTR;
+            this.attr = lower;
+          }
+        }
+        return;
+      case M_BEFORE_VALUE:
+        if (isSpace(cp)) return;
+        if (cp === 0x22) this.state = M_DOUBLE;
+        else if (cp === 0x27) this.state = M_SINGLE;
+        else if (cp === 0x3e) {
+          this.addAttr('');
+          this.finish();
+        } else {
+          this.state = M_UNQUOTED;
+          this.value = ch;
+        }
+        return;
+      case M_DOUBLE:
+      case M_SINGLE:
+        if (cp === (this.state === M_DOUBLE ? 0x22 : 0x27)) {
+          this.addAttr(this.value);
+          this.state = M_BEFORE_ATTR;
+        } else if (this.value.length < 4096) this.value += ch;
+        return;
+      case M_UNQUOTED:
+        if (isSpace(cp)) {
+          this.addAttr(this.value);
+          this.state = M_BEFORE_ATTR;
+        } else if (cp === 0x3e) {
+          this.addAttr(this.value);
+          this.finish();
+        } else if (this.value.length < 4096) this.value += ch;
+        return;
+      default:
+        throw new Error(`Tag reader in unknown state ${this.state}`);
+    }
+  }
+
+  /** A tag the file ends inside is read as far as it goes. */
+  end(): void {
+    if (this.state === M_OPEN) this.state = M_NONE;
+    else if (this.state !== M_NONE) {
+      this.addAttr(this.state === M_DOUBLE || this.state === M_SINGLE || this.state === M_UNQUOTED ? this.value : undefined);
+      this.finish();
+    }
+  }
+}
+
+/** The bytes a string takes in an encoding the decoder reads. */
+function encodedLength(s: string, encoding: TextEncoding): number {
+  if (encoding === 'utf-16le' || encoding === 'utf-16be') return s.length * 2;
+  if (encoding === 'utf-32le' || encoding === 'utf-32be') return [...s].length * 4;
+  return Buffer.byteLength(s, 'utf8');
+}
+
+/**
+ * The text of a YAML file, kept whole for the parser, with marks that turn an index into the text back into an
+ * offset in the file. A mark sits after every character whose bytes are not its encoding, such as bytes that do not
+ * decode, and every 4096 characters, so an offset is a short count from the mark before it.
+ */
+class YamlText {
+  text = '';
+  private readonly marks: number[] = [];
+  private since = 0;
+
+  constructor(
+    readonly start: number,
+    private readonly encoding: TextEncoding,
+  ) {
+    this.marks.push(0, start);
+  }
+
+  push(cp: number, at: number, length: number): void {
+    const s = String.fromCodePoint(cp);
+    this.text += s;
+    if (encodedLength(s, this.encoding) !== length || ++this.since >= 4096) {
+      this.marks.push(this.text.length, at + length);
+      this.since = 0;
+    }
+  }
+
+  offsetOf(index: number): number {
+    let lo = 0;
+    let hi = this.marks.length / 2 - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (this.marks[mid * 2] <= index) lo = mid;
+      else hi = mid - 1;
+    }
+    return this.marks[lo * 2 + 1] + encodedLength(this.text.slice(this.marks[lo * 2], index), this.encoding);
+  }
+}
+
+/** Characters a URL scheme may hold besides letters, which a scheme must not follow on. */
+const schemeChar = (c: number) => isLetter(c) || (c >= 0x30 && c <= 0x39) || c === 0x2b || c === 0x2e || c === 0x2d;
+
+/** What a pass needs besides the file: its subtypes, where its text starts, and the limits of the JSON and YAML rules. */
+interface ScanSetup {
+  subtypes: TextSubtype[];
+  start: number;
+  depth: number;
+  aliasExpansion: number;
+}
+
 /** One pass over a text file: its findings, and with `edits` the changes the rewrite makes. */
 class Scan {
   readonly findings: FileFinding[] = [];
@@ -522,15 +938,25 @@ class Scan {
   private readonly csv: Delimited[] = [];
   private readonly md?: Markdown;
   private readonly decoder: Decoder;
+  private readonly escapes: TerminalEscapes;
+  private readonly markup?: MarkupTags;
+  private readonly json?: JsonScanner;
+  private readonly yaml?: YamlText;
+  /** Plain javascript: and vbscript: URLs are looked for outside Markdown, which has its own rule for links. */
+  private readonly urls: boolean;
+  private word = '';
+  private wordFree = true;
+  private prev = 0;
   private offset = 0;
 
   constructor(
     private readonly factory: FindingFactory,
     private readonly encoding: TextEncoding,
     bom: boolean,
-    subtypes: TextSubtype[],
+    private readonly setup: ScanSetup,
     private readonly rewrite: boolean,
   ) {
+    const subtypes = setup.subtypes;
     this.decoder = new Decoder(encoding, bom, (cp, at, length, kind) => this.char(cp, at, length, kind));
     for (const [t, d] of [
       ['csv', 0x2c],
@@ -549,6 +975,28 @@ class Scan {
         if (this.report(C.Link, detail, `line ${line}`, { scheme }).action === 'strip') this.edit(at, end - at, '#');
       });
     }
+    this.escapes = new TerminalEscapes(
+      (sequence, start, end, _whole, line) => {
+        if (this.report(C.Text, D.TerminalEscape, `line ${line}`, { sequence }).action === 'strip') this.edit(start, end - start, '');
+      },
+      ([cp, at, length, kind, line]) => this.rules(cp, at, length, kind, line),
+    );
+    const json = subtypes.includes('json') || subtypes.includes('ndjson');
+    // In JSON a < can only sit in a string, where JSON/HTML_BREAKOUT escapes it without changing the value. In
+    // JavaScript a tag in a string is the program's own text.
+    if (!json && !subtypes.includes('js')) {
+      this.markup = new MarkupTags((tag, ltEnd, line) => {
+        if (this.report(C.Text, D.Markup, `line ${line}`, { tag }).action === 'strip') this.edit(ltEnd, 0, ' ');
+      });
+    }
+    this.urls = !subtypes.includes('md');
+    if (json) {
+      this.json = new JsonScanner(setup.depth, subtypes.includes('ndjson') && !subtypes.includes('json'), {
+        report: (category, detail, line, data) => this.report(category, detail, `line ${line}`, data).action,
+        edit: (at, length, insert) => this.edit(at, length, insert),
+      });
+    }
+    if (subtypes.includes('yaml')) this.yaml = new YamlText(setup.start, encoding);
   }
 
   private report(category: C, detail: D, location: string, data?: Record<string, string | number>): FileFinding {
@@ -556,7 +1004,7 @@ class Scan {
     const n = (this.counts.get(key) ?? 0) + 1;
     this.counts.set(key, n);
     const f = this.factory.make(category, detail, data);
-    f.location = location;
+    if (location) f.location = location;
     if (n <= MAX_PER_KIND) this.findings.push(f);
     return f;
   }
@@ -565,11 +1013,14 @@ class Scan {
     if (this.rewrite) this.edits.push({ at, length, insert });
   }
 
-  /** The lowest offset an edit may still come for. */
+  /** The lowest offset an edit may still come for. YAML is read whole, so its edits come at the end. */
   get watermark(): number {
-    let w = Math.min(this.offset, this.decoder.holding);
+    let w = Math.min(this.offset, this.decoder.holding, this.escapes.holding);
     for (const d of this.csv) if (d.signedAt >= 0) w = Math.min(w, d.signedAt);
     if (this.md) w = Math.min(w, this.md.holding);
+    if (this.markup) w = Math.min(w, this.markup.holding);
+    if (this.json) w = Math.min(w, this.json.holding);
+    if (this.yaml) w = Math.min(w, this.yaml.start);
     return w;
   }
 
@@ -584,9 +1035,19 @@ class Scan {
       if (!this.lastCR) this.line++;
     } else if (cp === CR) this.line++;
     this.lastCR = cp === CR;
+    // JSON and YAML read every character as written, before any rule takes one.
+    const written = kind === ESCAPE ? 0xfffd : cp;
+    this.json?.push(written, at, length);
+    this.yaml?.push(written, at, length);
     if (kind === ERROR) {
       if (this.report(C.Text, D.Encoding, `offset ${at}`, { offset: at, bytes: length, encoding: this.encoding.toUpperCase() }).action === 'strip') this.edit(at, length, '\ufffd');
     } else if (kind === ESCAPE && this.firstEscape < 0) this.firstEscape = at;
+    if (this.escapes.push([cp, at, length, kind, line])) return;
+    this.rules(cp, at, length, kind, line);
+  }
+
+  /** The rules for a character no escape sequence took. */
+  private rules(cp: number, at: number, length: number, kind: number, line: number): void {
     if (kind !== ESCAPE && control(cp)) {
       if (this.report(C.Text, D.ControlCharacter, `line ${line}`, { codePoint: hex(cp) }).action === 'strip') {
         this.edit(at, length, '');
@@ -601,14 +1062,46 @@ class Scan {
     }
     for (const d of this.csv) d.push(cp, at);
     this.md?.push(cp, at, length);
+    this.markup?.push(cp, at, length, line);
+    if (this.urls) this.scheme(cp, line);
+  }
+
+  /** A javascript: or vbscript: URL in the text, where a scheme can start: after anything a scheme cannot hold. */
+  private scheme(cp: number, line: number): void {
+    if (isLetter(cp)) {
+      if (this.word === '') this.wordFree = !schemeChar(this.prev);
+      this.word = this.word.length < 11 ? this.word + String.fromCharCode(cp).toLowerCase() : '-';
+    } else {
+      if (cp === 0x3a && this.wordFree && (this.word === 'javascript' || this.word === 'vbscript')) this.report(C.Text, D.ScriptUrl, `line ${line}`, { scheme: this.word });
+      this.word = '';
+    }
+    this.prev = cp;
   }
 
   end(): void {
     this.decoder.end();
+    this.escapes.end();
     for (const d of this.csv) {
       if (d.end()) this.report(C.Text, D.UnclosedQuote, `row ${d.rowNumber}`);
     }
     this.md?.end(this.offset);
+    this.markup?.end();
+    this.json?.end(this.offset);
+    const y = this.yaml;
+    if (y) {
+      yamlRules(
+        y.text,
+        { depth: this.setup.depth, aliasExpansion: this.setup.aliasExpansion },
+        {
+          report: (detail, line, data) => this.report(C.Yaml, detail, `line ${line}`, data).action,
+          edit: (index, length, insert) => {
+            const from = y.offsetOf(index);
+            this.edit(from, y.offsetOf(index + length) - from, insert);
+          },
+        },
+      );
+    }
+    if (this.setup.subtypes.includes('js')) this.report(C.Text, D.JavaScript, '');
     if (this.firstEscape >= 0) this.report(C.Text, D.UnnamedEncoding, `offset ${this.firstEscape}`, { offset: this.firstEscape });
     for (const [key, n] of this.counts) {
       if (n <= MAX_PER_KIND) continue;
@@ -703,13 +1196,17 @@ export class TextReader {
   }
 
   /** One pass: the findings, and with a sink the rewrite. */
-  private async pass(source: ByteSource, subtypes: TextSubtype[], deadline: number | undefined, sink?: ByteSink): Promise<FileFinding[]> {
+  private async pass(source: ByteSource, hints: DetectHints, deadline: number | undefined, sink?: ByteSink): Promise<FileFinding[]> {
     const size = await source.size();
-    const head = await source.read(0, Math.min(4, size));
+    const head = await source.read(0, Math.min(HEAD_BYTES, size));
     const bom = bomOf(head);
     const encoding: TextEncoding = bom?.encoding ?? 'utf-8';
     const start = bom?.bom ?? 0;
-    const scan = new Scan(this.factory, encoding, bom !== undefined, subtypes, sink !== undefined);
+    // The claim's subtypes, and what the start of the file shows, as detection finds them.
+    const subtypes = textTypesOf(hints, contentTextTypes(head, head.length === size));
+    const limits = this.options.limits ?? {};
+    const setup = { subtypes, start, depth: limits.depth ?? JSON_DEPTH, aliasExpansion: limits.aliasExpansion ?? 100 };
+    const scan = new Scan(this.factory, encoding, bom !== undefined, setup, sink !== undefined);
     const writer = sink && new Writer(source, sink, encoding);
     let pending: Edit[] = [];
     for (let pos = start; pos < size; pos += CHUNK) {
@@ -736,8 +1233,8 @@ export class TextReader {
     return { status, score: s.score, risk: s.risk, findings };
   }
 
-  async inspect(source: ByteSource, subtypes: TextSubtype[], deadline?: number): Promise<TextInspection> {
-    return this.verdict(await this.pass(source, subtypes, this.deadline(deadline)));
+  async inspect(source: ByteSource, hints: DetectHints, deadline?: number): Promise<TextInspection> {
+    return this.verdict(await this.pass(source, hints, this.deadline(deadline)));
   }
 
   /**
@@ -745,14 +1242,14 @@ export class TextReader {
    * A copy that still holds anything to remove is not written, and the file is rejected with
    * PROCESSING/VERIFICATION_FAILED.
    */
-  async disarm(source: ByteSource, sink: ByteSink, subtypes: TextSubtype[], deadline?: number): Promise<TextDisarm> {
+  async disarm(source: ByteSource, sink: ByteSink, hints: DetectHints, deadline?: number): Promise<TextDisarm> {
     const until = this.deadline(deadline);
-    const before = this.verdict(await this.pass(source, subtypes, until));
+    const before = this.verdict(await this.pass(source, hints, until));
     if (before.status === 'rejected') return { status: 'rejected', before, removed: [] };
     const spill = new Spill(this.options.memoryThreshold ?? DEFAULT_MEMORY_THRESHOLD, this.options.tempDir);
     try {
-      await this.pass(source, subtypes, until, spill);
-      const after = this.verdict(await this.pass(spill.source(), subtypes, until));
+      await this.pass(source, hints, until, spill);
+      const after = this.verdict(await this.pass(spill.source(), hints, until));
       const left = after.findings.filter(f => f.action !== 'info');
       if (left.length) {
         const reasons = [...new Set(left.map(f => `${f.category}/${f.detail}`))].join(', ');
@@ -783,13 +1280,13 @@ export class TextReader {
 }
 
 /** The text rules as a contained file plugin, for the router. The router only hands it files detection calls text. */
-export function textPlugin(reader: TextReader, subtypesOf: (name?: string, declaredType?: string) => TextSubtype[]): ContainedFilePlugin {
+export function textPlugin(reader: TextReader): ContainedFilePlugin {
   return {
     kind: 'file',
     name: 'text',
     accepts: () => true,
     async process(file, sink, context) {
-      const r = await reader.disarm(file.source, sink, subtypesOf(file.name, file.declaredType), context.deadline);
+      const r = await reader.disarm(file.source, sink, { name: file.name, declaredType: file.declaredType }, context.deadline);
       if (r.status === 'rejected') return { result: 'removed', findings: r.before.findings };
       return { result: r.status === 'clean' ? 'passed' : 'scrubbed', findings: r.before.findings, outputFindings: r.after?.findings };
     },

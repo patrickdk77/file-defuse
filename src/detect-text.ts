@@ -42,17 +42,20 @@ export function looseText(b: Uint8Array, encoding: TextEncoding | 'ebcdic'): str
   }
 }
 
-/** True for a control character text may hold: tab, line feed, form feed and carriage return. */
-export const allowedControl = (c: number) => c === 0x09 || c === 0x0a || c === 0x0c || c === 0x0d;
-/** C0 controls, DEL and C1 controls, as code points. */
-export const isControl = (c: number) => c < 0x20 || (c >= 0x7f && c <= 0x9f);
+/**
+ * True for a C0 control text may hold, as libmagic's text_chars table counts them: bell, backspace, tab, line feed,
+ * vertical tab, form feed, carriage return and escape. A log with colours, a man page with overstriking and a file
+ * with a bell are text. The text rules then deal with the characters.
+ */
+export const allowedControl = (c: number) => (c >= 0x07 && c <= 0x0d) || c === 0x1b;
 
 /**
  * Whether the start of a file is text, and in what encoding. A byte order mark names UTF-8, UTF-16 or UTF-32, and
- * without one the bytes must be UTF-8. Either way they must decode, and hold no NUL and no control character but tab,
- * line feed, form feed and carriage return. A sequence the cut at `complete === false` splits is not held against
- * it. Bytes that are not UTF-8 and name no encoding count as 8-bit text when they hold no C0 control but those four
- * and no DEL. That is a guess, since any 8-bit encoding fits.
+ * without one the bytes must be UTF-8. Either way they must decode, and hold no NUL, no DEL and no C0 control but
+ * those allowedControl names. C1 controls do not count against it, as libmagic does not count them in Unicode text.
+ * A sequence the cut at `complete === false` splits is not held against it. Bytes that are not UTF-8 and name no
+ * encoding count as 8-bit text under the same rule for C0 controls and DEL. That is a guess, since any 8-bit
+ * encoding fits.
  */
 export function textEncoding(head: Uint8Array, complete: boolean): TextEncoding | undefined {
   const bom = bomOf(head);
@@ -70,7 +73,7 @@ export function textEncoding(head: Uint8Array, complete: boolean): TextEncoding 
 function cleanText(text: string): boolean {
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
-    if (isControl(c) && !allowedControl(c)) return false;
+    if ((c < 0x20 && !allowedControl(c)) || c === 0x7f) return false;
   }
   return true;
 }

@@ -76,7 +76,7 @@ $ file-defuse detect test/fixtures/jpeg-zip.bin
 | `chosenBy` | For a polyglot, what chose the format: `name`, `declaredType` or `firstSignature` |
 | `heuristic` | Set when the chosen format rests on a heuristic, saying what it rests on |
 | `encoding` | For text: `utf-8`, `utf-16le`, `utf-16be`, `utf-32le`, `utf-32be`, or `8-bit` for text that is not UTF-8 and names no encoding |
-| `textTypes` | For text, the subtypes the name and declared type give |
+| `textTypes` | For text, the subtypes the name, the declared type and the content give |
 | `sniffedType` | The type the router gives the package as `ContainedFile.sniffedType`, the container format, such as `application/zip` for every Office Open XML package |
 
 ### Formats
@@ -88,20 +88,20 @@ Each package claims the formats its own README lists:
 | office-defuse | Office Open XML, XPS and OpenDocument packages whose format it can name, flat OpenDocument and Flat OPC files, compound files whose root names an Office format, encrypted Office Open XML packages, and RTF |
 | pdf-defuse | A file with a PDF header in its first 1024 bytes, or one without a header whose name or declared type says PDF and which opens as a PDF |
 | img-defuse | The image formats it reads, by their first 64 bytes |
-| xml-defuse | HTML, XHTML, SVG, XSLT, XML and MHT, by the markup or MIME headers at the start, and XML in EBCDIC, which it refuses |
+| xml-defuse | HTML, XHTML, SVG, XSLT, XML and MHT, by the markup or MIME headers at the start, XML in EBCDIC, which it refuses, and a style sheet whose name or declared type says CSS |
 | archive-defuse | ZIP, tar, gzip, bzip2, zstd, cabinet, 7z, xz and .lzma files, a ZIP archive behind other data, a 7z archive after a program, and Brotli when the name or declared type says Brotli |
 
 A package claims a file it can name even when the file is damaged further on, and its inspection then rejects the file. It claims nothing it cannot name. archive-defuse reads every ZIP archive, so its claim gives way when office-defuse names the same bytes. A ZIP archive office-defuse cannot name is archive-defuse's: a plain archive, an EPUB, a NuGet or StarOffice package, a package cut short, and a package with data in front, which office-defuse refuses.
 
 file-defuse itself names a few formats no package reads, at the start of a file, so a report can say what the file is. They are RAR, ELF and Windows executables, PostScript, SYLK, and a compound file office-defuse cannot name, such as an installer. They have no family. Text, which no package claims, is the last guess.
 
-**Text.** Content is text when it decodes cleanly, as UTF-8 or as UTF-16 or UTF-32 behind a byte order mark, and holds no NUL and no control character but tab, carriage return, line feed and form feed. Bytes that are not UTF-8, name no encoding, and hold no C0 control but those four and no DEL are text in an 8-bit encoding, which is a guess, since every 8-bit encoding fits. An empty file is text.
+**Text.** Content is text when it decodes cleanly, as UTF-8 or as UTF-16 or UTF-32 behind a byte order mark, and holds no NUL, no DEL and no C0 control but the ones libmagic's text table allows: bell, backspace, tab, line feed, vertical tab, form feed, carriage return and escape. A log with colours and a man page with overstriking are text, and the text rules deal with their controls. C1 controls in Unicode text do not count against it either. Bytes that are not UTF-8 and name no encoding pass the same test as text in an 8-bit encoding, which is a guess, since every 8-bit encoding fits. An empty file is text.
 
 ### Claims
 
 A name and a declared type never overrule what the content shows. They do three things.
 
-- They choose a text subtype: `.csv` or `text/csv`, `.tsv`, `.tab` or `text/tab-separated-values`, `.md`, `.markdown` or `text/markdown`, and `.txt` or `text/plain`. Both are read, the name first, and each subtype adds its rules. None removes a rule.
+- They choose a text subtype: `.csv` or `text/csv`, `.tsv`, `.tab` or `text/tab-separated-values`, `.md`, `.markdown` or `text/markdown`, `.txt` or `text/plain`, `.json`, `application/json` or any `+json` type, `.jsonl`, `.ndjson` or `application/x-ndjson`, `.yml`, `.yaml` or `application/yaml`, and `.js`, `.mjs`, `.cjs` or `text/javascript`. Both are read, the name first, and each subtype adds its rules. None removes a rule. The content adds JSON or newline-delimited JSON, found as libmagic finds it, unless the claim already says JSON, YAML or JavaScript, and adds JavaScript behind a `node`, `deno` or `bun` shebang. A `.map` file is JSON only by its content, since a linker map is text.
 - They choose among the formats of a polyglot, described below.
 - They let a package claim a format the content cannot show on its own. pdf-defuse claims a file without a PDF header when the claim says PDF and the file opens as one. archive-defuse claims a Brotli stream only when the claim says Brotli.
 
@@ -112,6 +112,7 @@ For the upload they come from the `name` and `declaredType` options. A file insi
 - An old tar header has no magic, only a checksum.
 - lzma-alone has no magic. archive-defuse uses liblzma's test, properties with lc + lp at most 4, a dictionary of 2^n or 2^n + 2^(n-1) bytes or 0, a size that is unknown or below 256 GiB, and a first byte of 0 in the range coder data, and tries it after every signature. Fourteen zero bytes pass it.
 - 8-bit text is a guess, since every 8-bit encoding fits.
+- JSON has no signature. The first 64 KiB must parse as JSON, to a depth of 500, and hold an object or an array, which is libmagic's test. Values on separate lines make newline-delimited JSON. A file longer than that whose start parses is JSON, and its rules reject it if the rest does not.
 - Brotli has no signature, and a one-byte file can decode as a Brotli stream. archive-defuse claims Brotli only when the name or declared type says Brotli and the whole file decodes.
 - A self-extracting archive starts with an executable, so file-defuse names the executable. archive-defuse finds a 7z archive after it within the first MiB, and a ZIP archive from its end record, and the claim chooses between them. A RAR archive after it is not looked for.
 - A PDF whose header is missing, damaged or past the first 1024 bytes is a PDF only when its name or declared type says so and pdf-defuse opens it. Text with a PDF after it is text unless it claims to be a PDF.
@@ -165,10 +166,14 @@ Text goes to file-defuse's own rules, in the `text` section. Each rule decides i
 |---|---|---|---|
 | TEXT/ENCODING | `strip` | 10 | Bytes that do not decode in the encoding a byte order mark names. The rewrite writes U+FFFD in their place |
 | TEXT/UNNAMED_ENCODING | `info` | 0 | The text is not UTF-8 and has no byte order mark, so it is read as 8-bit text. The rewrite keeps its bytes |
-| TEXT/CONTROL_CHARACTER | `strip` | 10 | A C0 control, DEL or a C1 control, other than tab, line feed, form feed and carriage return. The rewrite removes it |
+| TEXT/CONTROL_CHARACTER | `strip` | 10 | A C0 control, DEL or a C1 control, other than tab, line feed, form feed and carriage return. The rewrite removes it. An escape that opens a sequence belongs to TEXT/TERMINAL_ESCAPE |
 | TEXT/BIDI_CONTROL | `strip` | 30 | U+202A to U+202E or U+2066 to U+2069, which can make text show in another order than it reads. The rewrite removes it |
 | TEXT/FORMULA | `strip` | 50 | CSV and TSV. A cell that starts with `=`, `+`, `-`, `@`, tab or carriage return, which a spreadsheet runs as a formula. A plain number and a lone sign are left alone. The rewrite puts a single quote at the start of the cell, inside its quotes when it has them |
 | TEXT/UNCLOSED_QUOTE | `reject` | 0 | CSV and TSV. A quoted cell that never closes, so the rest of the file reads as one cell. The file has no score |
+| TEXT/TERMINAL_ESCAPE | `strip` | 30 | An ANSI escape sequence, in the 7-bit or the C1 form: a control sequence, an OSC, DCS, SOS, PM or APC string up to its BEL or string terminator, or a two-character escape. A terminal runs these instead of showing them, and an OSC 52 sequence writes to the clipboard. The rewrite removes the sequence whole. A string sequence with no end loses only its opening |
+| TEXT/MARKUP | `strip` | 50 | Every subtype but JSON and JavaScript. A tag that runs script once a browser shows the file as HTML: `script`, `iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `svg`, `math`, `base`, `form`, `link`, `style` and `portal`, a `meta` with `http-equiv`, a tag with an `on...` event handler, and a tag with an attribute that holds a `javascript:` or `vbscript:` URL. The rewrite puts a space after the `<`, so a browser shows the tag as text and a person still reads it |
+| TEXT/SCRIPT_URL | `info` | 0 | Every subtype but Markdown. A `javascript:` or `vbscript:` URL, which does nothing in text until markup or a link uses it |
+| TEXT/JAVASCRIPT | `info` | 30 | JavaScript. The file is code |
 | LINK/SCRIPT_URL | `strip` | 50 | Markdown. A link to a `javascript:` or `vbscript:` URL. The rewrite turns the scheme into `#` |
 | LINK/DATA_URL | `strip` | 60 | Markdown. A link to a `data:` URL. The rewrite turns the scheme into `#` |
 
@@ -176,11 +181,48 @@ Detection checks the first 64 KiB, so a control character or a byte that does no
 
 The CSV reader is pdf-defuse's. Quoting follows RFC 4180, a stray quote is text, and a TSV file is read with the same quoting, as pdf-defuse's TSV plugin reads one. The Markdown rule reads inline links and images, reference definitions, a destination on the line after its `](` or label, and autolinks. It skips fenced code blocks and code spans. It reads a scheme the way a browser does, after backslash escapes and character references, without tabs and line breaks, and without leading spaces and controls.
 
+The markup rule reads tags as the HTML tokenizer does. A `<` followed by a letter opens a tag, a quoted attribute value may hold `>`, and an end tag does nothing. Attribute values are decoded the same way as Markdown destinations before their scheme is read.
+
 In 8-bit text, the bytes 0x80 to 0x9F stay, since Windows-1252 prints them. A reader that takes the file as ISO-8859-1 sees C1 controls there. The bidirectional controls and C1 controls written as UTF-8 are found and removed even in 8-bit text, since a reader may take the file for UTF-8.
 
 `disarmFile` writes the rewrite to a temporary copy, kept in memory up to `memoryThreshold` and in `tempDir` past it, then inspects the copy with the same subtypes. A copy that still holds a finding that is not `info` is not written, and the file is rejected with PROCESSING/VERIFICATION_FAILED. A clean file comes out byte for byte.
 
-The `text` section takes `actionOverrides` for TEXT, LINK and PROCESSING findings, `scoreWeights`, `scoreBands`, `limits.timeMs`, `tempDir` and `memoryThreshold`. The score is the family's: the highest weight in full and a quarter of each other kind's, capped at 100.
+The `text` section takes `actionOverrides` for TEXT, LINK, JSON, SOURCEMAP, YAML and PROCESSING findings, `scoreWeights`, `scoreBands`, `limits.timeMs`, `limits.depth`, `limits.aliasExpansion`, `tempDir` and `memoryThreshold`. The score is the family's: the highest weight in full and a quarter of each other kind's, capped at 100.
+
+### JSON
+
+JSON and newline-delimited JSON get rules of their own on top of the text rules, in the `text` section too. The reader follows RFC 8259 strictly, needs no recursion, and keeps only the keys of the objects still open.
+
+| Finding | Action | Weight | When |
+|---|---|---|---|
+| JSON/MALFORMED | `reject` | 0 | The file does not parse: comments, trailing commas, NaN, single quotes, a control character in a string, or two values outside newline-delimited JSON |
+| JSON/DUPLICATE_KEY | `strip` | 40 | An object names a key twice, and readers disagree on which value wins. The rewrite keeps the last, as `JSON.parse` does, and removes the others with their commas |
+| JSON/PROTOTYPE_KEY | `strip` | 60 | A `__proto__` member, or a `prototype` member under `constructor`. Code that merges objects with one changes every object. The rewrite removes the member |
+| JSON/HTML_BREAKOUT | `strip` | 20 | A string holds `<`, `>`, `&`, U+2028 or U+2029. The rewrite writes them as `\u003c`, `\u003e`, `\u0026`, `\u2028` and `\u2029`. Every JSON reader takes those as the same value, and none of them can end a `<script>` element the JSON sits in |
+| JSON/LONE_SURROGATE | `strip` | 20 | A `\u` escape of half a surrogate pair. The rewrite writes `\ufffd` |
+| JSON/BIG_NUMBER | `info` | 0 | An integer past 2^53 - 1, which JavaScript rounds |
+| JSON/DEPTH | `reject` | 0 | Nesting past `limits.depth`, 500 by default, libmagic's limit |
+
+A location names the line, and `data.path` gives the JSON pointer of the value. The rewrite edits the file in place, so whitespace and the spelling of numbers stay as written.
+
+A JSON object with `version` 3 and `mappings` is a source map. SOURCEMAP/SCRIPT_URL, `strip` with weight 50, is a `javascript:`, `vbscript:` or `data:` URL in `sources`, `sourceRoot` or `file`, which a browser's developer tools load. The rewrite turns the scheme into `#`. SOURCEMAP/SOURCES_CONTENT, `info`, says the map carries the source code it maps.
+
+### YAML
+
+YAML is read whole with the [yaml](https://www.npmjs.com/package/yaml) package, the one dependency outside the family, since nothing in YAML can be judged before it parses. Edits go back into the file by offset, in every encoding the text rules read.
+
+| Finding | Action | Weight | When |
+|---|---|---|---|
+| YAML/MALFORMED | `reject` | 0 | A document does not parse |
+| YAML/TAG | `strip` | 70 | A tag outside the YAML 1.2 core schema and the YAML 1.1 types, resolved through the document's `%TAG` directives: `!!python/object/apply`, `!ruby/object`, `!local` and the like. Unsafe loaders build objects or run code from these. The rewrite removes the tag and keeps the value |
+| YAML/DUPLICATE_KEY | `reject` | 0 | A mapping names a key twice, which YAML forbids. A repeated `<<` merge key passes, since loaders that merge accept it |
+| YAML/PROTOTYPE_KEY | `strip` | 60 | A `__proto__` key. The rewrite removes the pair, and its comma in a flow mapping |
+| YAML/ALIAS_EXPANSION | `reject` | 0 | Aliases make the document more than `limits.aliasExpansion` times its written size in nodes, 100 by default, and over 10,000 nodes. That is the billion laughs |
+| YAML/DEPTH | `reject` | 0 | Collections nest past `limits.depth`, or deep enough to run the parser out of stack |
+
+### JavaScript
+
+A `.js`, `.mjs` or `.cjs` file, a JavaScript type, or a file behind a `node`, `deno` or `bun` shebang gets the text rules without TEXT/MARKUP, since a tag in a JavaScript string is the program's own text. TEXT/BIDI_CONTROL removes the bidirectional controls of the Trojan Source attack. TEXT/JAVASCRIPT says the file is code. file-defuse does not tell safe scripts from unsafe ones.
 
 ## The report
 
@@ -328,7 +370,8 @@ Exit codes are 0 for clean, 1 for stripped or strippable, 2 for rejected and 3 f
 ## What it does not check
 
 - RAR archives, executables, Windows Installer packages, PostScript and SYLK files. No package reads them, so they get TYPE/NO_PACKAGE at the upload and the container's rule inside one.
-- Raw HTML in Markdown, and markup further into a text file whose start is plain text. Such a file is text to detection, and the text rules do not read markup. A browser shown it as HTML would run its scripts.
+- Script in text that reaches a browser some way other than the tags TEXT/MARKUP reads, such as a tag written in UTF-7, which only Internet Explorer 8 and older decoded.
+- Whether a JavaScript file is safe to run. It is kept, with TEXT/JAVASCRIPT.
 - Formula rules for a CSV file that no name or declared type calls CSV. Its content alone does not make it CSV.
 
 ## Development

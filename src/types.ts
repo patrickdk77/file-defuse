@@ -11,6 +11,9 @@ export enum FileCategory {
   Limit = 'LIMIT',
   Text = 'TEXT',
   Link = 'LINK',
+  Json = 'JSON',
+  SourceMap = 'SOURCEMAP',
+  Yaml = 'YAML',
   Processing = 'PROCESSING',
 }
 
@@ -26,9 +29,24 @@ export enum FileDetail {
   BidiControl = 'BIDI_CONTROL',
   Formula = 'FORMULA',
   UnclosedQuote = 'UNCLOSED_QUOTE',
-  // LINK
+  TerminalEscape = 'TERMINAL_ESCAPE',
+  Markup = 'MARKUP',
+  JavaScript = 'JAVASCRIPT',
+  // LINK, and TEXT and SOURCEMAP for SCRIPT_URL
   ScriptUrl = 'SCRIPT_URL',
   DataUrl = 'DATA_URL',
+  // JSON and YAML
+  Malformed = 'MALFORMED',
+  DuplicateKey = 'DUPLICATE_KEY',
+  PrototypeKey = 'PROTOTYPE_KEY',
+  HtmlBreakout = 'HTML_BREAKOUT',
+  LoneSurrogate = 'LONE_SURROGATE',
+  BigNumber = 'BIG_NUMBER',
+  Depth = 'DEPTH',
+  Tag = 'TAG',
+  AliasExpansion = 'ALIAS_EXPANSION',
+  // SOURCEMAP
+  SourcesContent = 'SOURCES_CONTENT',
   // PROCESSING
   VerificationFailed = 'VERIFICATION_FAILED',
   // LIMIT

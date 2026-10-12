@@ -28,9 +28,31 @@ def(C.Text, D.ControlCharacter, 'strip', 10, 'The text holds a control character
 def(C.Text, D.BidiControl, 'strip', 30, 'The text holds a bidirectional control character<, {codePoint}|>, which can make it show in another order than it reads');
 def(C.Text, D.Formula, 'strip', 50, 'A cell starts with <{first}|a character> that a spreadsheet takes as the start of a formula');
 def(C.Text, D.UnclosedQuote, 'reject', 0, 'A quoted cell never closes, so the rest of the file reads as one cell');
+def(C.Text, D.TerminalEscape, 'strip', 30, 'The text holds a terminal escape sequence<, {sequence}|>, which a terminal runs instead of showing');
+def(C.Text, D.Markup, 'strip', 50, 'The text holds <a {tag} tag|a tag> that runs script when a browser shows the file as HTML');
+def(C.Text, D.ScriptUrl, 'info', 0, 'The text holds a <{scheme}:|javascript: or vbscript:> URL, which does nothing until markup or a link uses it');
+def(C.Text, D.JavaScript, 'info', 30, 'The file is JavaScript, which runs wherever it is loaded as a script');
 // LINK
 def(C.Link, D.ScriptUrl, 'strip', 50, 'A link uses a <{scheme}:|javascript: or vbscript:> URL');
 def(C.Link, D.DataUrl, 'strip', 60, 'A link carries embedded data');
+// JSON
+def(C.Json, D.Malformed, 'reject', 0, 'The file is not valid JSON<: {reason}|>');
+def(C.Json, D.DuplicateKey, 'strip', 40, 'An object names <the key {key}|a key> more than once, and JSON readers disagree on which value wins');
+def(C.Json, D.PrototypeKey, 'strip', 60, 'An object has <a {key}|a __proto__> member, which code that merges objects turns into a change to every object');
+def(C.Json, D.HtmlBreakout, 'strip', 20, 'A string holds an angle bracket, an ampersand or a line or paragraph separator, which can end a script or page the JSON is placed in');
+def(C.Json, D.LoneSurrogate, 'strip', 20, 'A string escapes half of a surrogate pair, which readers decode differently');
+def(C.Json, D.BigNumber, 'info', 0, 'An integer is too large for JavaScript to hold exactly<: {value}|>');
+def(C.Json, D.Depth, 'reject', 0, 'The JSON nests deeper than the depth limit allows');
+// SOURCEMAP
+def(C.SourceMap, D.ScriptUrl, 'strip', 50, "The source map names a <{scheme}:|javascript: or data:> URL, which a browser's developer tools load");
+def(C.SourceMap, D.SourcesContent, 'info', 0, 'The source map carries the source code of the files it maps');
+// YAML
+def(C.Yaml, D.Malformed, 'reject', 0, 'The file is not valid YAML<: {reason}|>');
+def(C.Yaml, D.Tag, 'strip', 70, 'A value has <the tag {tag}|a tag> outside the YAML schemas, which some loaders turn into an object or code');
+def(C.Yaml, D.AliasExpansion, 'reject', 0, 'Aliases expand the YAML to many times its size, which exhausts a reader that follows them');
+def(C.Yaml, D.DuplicateKey, 'reject', 0, 'A mapping names <the key {key}|a key> more than once, which YAML does not allow');
+def(C.Yaml, D.PrototypeKey, 'strip', 60, 'A mapping has <a {key}|a __proto__> key, which code that merges objects turns into a change to every object');
+def(C.Yaml, D.Depth, 'reject', 0, 'The YAML nests deeper than the depth limit allows');
 // PROCESSING
 def(C.Processing, D.VerificationFailed, 'reject', 0, 'The defused output did not pass its own check, so nothing was written<: {reasons}|>');
 

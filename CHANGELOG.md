@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 - 2026-10-12
+
+- Text takes the control characters libmagic's text table allows: bell, backspace, vertical tab and escape. A log with colours, a man page with overstriking and a file with a bell used to get TYPE/NO_PACKAGE, and now get the text rules. C1 controls in Unicode text no longer make a file binary either, and the text rules still remove them.
+- TEXT/TERMINAL_ESCAPE removes ANSI escape sequences whole, colours, window titles and OSC 52 clipboard writes among them. TEXT/CONTROL_CHARACTER used to remove the escape alone and leave `[32m` behind.
+- TEXT/MARKUP puts a space after the `<` of a tag that runs script once a browser shows the text as HTML, in every subtype but JSON and JavaScript. TEXT/SCRIPT_URL reports a `javascript:` or `vbscript:` URL in plain text, for information.
+- JSON and newline-delimited JSON are found by content, as libmagic finds them, and by name and declared type. Their rules remove duplicate and `__proto__` members, escape characters that can end a script element, replace lone surrogate escapes, report integers JavaScript rounds, and reject malformed JSON and nesting past `limits.depth`. A source map loses its script URLs.
+- YAML, by name and declared type, is read with the `yaml` package. Tags outside the YAML schemas and `__proto__` keys are removed. Duplicate keys, aliases that expand past `limits.aliasExpansion`, nesting past `limits.depth` and YAML that does not parse are rejected.
+- JavaScript, by name, declared type or a `node`, `deno` or `bun` shebang, gets the text rules and TEXT/JAVASCRIPT.
+- A style sheet whose name or declared type says CSS goes to xml-defuse, which reads it with the rules a `style` element gets. The upload's declared type now reaches xml-defuse with its name.
+
 ## 0.1.1 - 2026-10-11
 
 - Detection asks each package with its own detect function, `detectOffice`, `detectPdf`, `detectImage`, `detectXml` and `detectArchive`, and keeps no copy of their format rules. A package names only what it reads, so routing and reading cannot disagree. A format takes the name and MIME type its package gives it, such as `text-flat-xml` for a flat OpenDocument text, `multipart/related` for MHT and mail, and `text/html` for HTA and SHTML.

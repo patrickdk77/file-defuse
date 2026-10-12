@@ -3,14 +3,18 @@ import { detectImageSource } from '@patrickdk77/img-defuse';
 import { detectOfficeSource } from '@patrickdk77/office-defuse';
 import { bufferSource, detectPdfSource } from '@patrickdk77/pdf-defuse';
 import { detectXmlSource } from '@patrickdk77/xml-defuse';
-import { bomOf, type TextEncoding, textEncoding } from './detect-text';
+import { bomOf, looseText, type TextEncoding, textEncoding } from './detect-text';
+import { jsonKind } from './json';
 import type { ByteSource } from './types';
 
 /** The family of packages that reads a format: the options section and package for it. */
 export type FileFamily = 'pdf' | 'office' | 'image' | 'xml' | 'archive' | 'text';
 
-/** A text subtype, which a name or a declared type chooses and which adds rules of its own. */
-export type TextSubtype = 'csv' | 'tsv' | 'md' | 'txt';
+/**
+ * A text subtype, which a name or a declared type chooses and which adds rules of its own. JSON and newline-delimited
+ * JSON are also found by content, as libmagic finds them, and JavaScript by a shebang that runs it.
+ */
+export type TextSubtype = 'csv' | 'tsv' | 'md' | 'txt' | 'json' | 'ndjson' | 'yaml' | 'js';
 
 /** What a file claims to be. Neither decides a family: a claim chooses among the formats the content matches. */
 export interface DetectHints {
@@ -231,6 +235,14 @@ const TEXT_EXT = new Map<string, TextSubtype>([
   ['mkd', 'md'],
   ['txt', 'txt'],
   ['text', 'txt'],
+  ['json', 'json'],
+  ['jsonl', 'ndjson'],
+  ['ndjson', 'ndjson'],
+  ['yml', 'yaml'],
+  ['yaml', 'yaml'],
+  ['js', 'js'],
+  ['mjs', 'js'],
+  ['cjs', 'js'],
 ]);
 const TEXT_TYPE = new Map<string, TextSubtype>([
   ['text/csv', 'csv'],
@@ -239,20 +251,67 @@ const TEXT_TYPE = new Map<string, TextSubtype>([
   ['text/markdown', 'md'],
   ['text/x-markdown', 'md'],
   ['text/plain', 'txt'],
+  ['application/json', 'json'],
+  ['text/json', 'json'],
+  ['application/x-json', 'json'],
+  ['text/x-json', 'json'],
+  ['application/x-ndjson', 'ndjson'],
+  ['application/jsonl', 'ndjson'],
+  ['application/x-jsonlines', 'ndjson'],
+  ['application/yaml', 'yaml'],
+  ['application/x-yaml', 'yaml'],
+  ['text/yaml', 'yaml'],
+  ['text/x-yaml', 'yaml'],
+  ['text/javascript', 'js'],
+  ['application/javascript', 'js'],
+  ['application/x-javascript', 'js'],
+  ['text/ecmascript', 'js'],
+  ['application/ecmascript', 'js'],
 ]);
 
-/** The text subtypes a claim gives: the name's first, then the declared type's. */
-export function textTypesOf(hints: DetectHints): TextSubtype[] {
+/**
+ * The text subtypes of a file: the name's first, then the declared type's, then what the content shows. JSON the
+ * content shows adds nothing when the claim already names JSON or newline-delimited JSON, so a .json file holding
+ * several values stays JSON and fails as JSON. Nor does it when the claim names YAML, which JSON is a subset of, or
+ * JavaScript, whose own rules apply. Text with no subtype is plain text.
+ */
+export function textTypesOf(hints: DetectHints, content: TextSubtype[] = []): TextSubtype[] {
   const out: TextSubtype[] = [];
   const ext = extensionOf(hints.name);
   const a = ext === undefined ? undefined : TEXT_EXT.get(ext);
   const t = hints.declaredType?.toLowerCase().split(';')[0].trim();
-  const b = t === undefined ? undefined : TEXT_TYPE.get(t);
+  const b = t === undefined ? undefined : (TEXT_TYPE.get(t) ?? (t.endsWith('+json') ? 'json' : undefined));
   for (const x of [a, b]) if (x && !out.includes(x)) out.push(x);
+  const json = (x: TextSubtype) => x === 'json' || x === 'ndjson';
+  const owns = (x: TextSubtype) => json(x) || x === 'yaml' || x === 'js';
+  for (const x of content) if (!out.includes(x) && !(json(x) && out.some(owns))) out.push(x);
   return out.length ? out : ['txt'];
 }
 
-const TEXT_MIME: Record<TextSubtype, string> = { csv: 'text/csv', tsv: 'text/tab-separated-values', md: 'text/markdown', txt: 'text/plain' };
+/** A shebang that runs the file with a JavaScript runtime. */
+const JS_SHEBANG = /^#![^\n]*\b(?:node|nodejs|deno|bun)\b/;
+
+/** The subtypes the start of a text file shows by itself: JSON or newline-delimited JSON, and JavaScript by its shebang. */
+export function contentTextTypes(head: Uint8Array, complete: boolean): TextSubtype[] {
+  const bom = bomOf(head);
+  const text = looseText(head.subarray(bom?.bom ?? 0), bom?.encoding ?? 'utf-8');
+  const out: TextSubtype[] = [];
+  const kind = jsonKind(text, complete);
+  if (kind) out.push(kind);
+  if (JS_SHEBANG.test(text)) out.push('js');
+  return out;
+}
+
+const TEXT_MIME: Record<TextSubtype, string> = {
+  csv: 'text/csv',
+  tsv: 'text/tab-separated-values',
+  md: 'text/markdown',
+  txt: 'text/plain',
+  json: 'application/json',
+  ndjson: 'application/x-ndjson',
+  yaml: 'application/yaml',
+  js: 'text/javascript',
+};
 
 /** A signature found, with the key a claim matches it by. */
 type Found = FileSignature & { container: string };
@@ -316,7 +375,7 @@ export async function detectSource(source: ByteSource, size: number, hints: Dete
   if (!kept.length) {
     const encoding = textEncoding(head, head.length === size);
     if (encoding === undefined) return { mimeType: 'application/octet-stream', extension: '', signatures: [], others: [] };
-    const textTypes = textTypesOf(hints);
+    const textTypes = textTypesOf(hints, contentTextTypes(head, head.length === size));
     const d: Detected = { mimeType: TEXT_MIME[textTypes[0]], extension: textTypes[0], family: 'text', signatures: [], others: [], encoding, textTypes, sniffedType: TEXT_MIME[textTypes[0]] };
     if (encoding === '8-bit') d.heuristic = 'bytes that are not UTF-8 and hold no control character, read as text in an 8-bit encoding the file does not name';
     return d;

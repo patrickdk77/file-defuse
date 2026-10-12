@@ -3,7 +3,7 @@ import { disarmImageSource, type ImageOptions, imagePlugin, allFindingSpecs as i
 import { disarmOfficeSource, inspectOfficeSource, type OfficeOptions, officePlugin, allFindingSpecs as officeSpecs } from '@patrickdk77/office-defuse';
 import { disarmPdfSource, inspectPdfSource, type PdfOptions, pdfPlugin, allFindingSpecs as pdfSpecs } from '@patrickdk77/pdf-defuse';
 import { disarmXmlSource, inspectXmlSource, type XmlOptions, xmlPlugin, allFindingSpecs as xmlSpecs } from '@patrickdk77/xml-defuse';
-import { type DetectHints, type FileFamily, textTypesOf } from './detect';
+import type { DetectHints, FileFamily } from './detect';
 import { TextReader, textPlugin } from './text';
 import type { ByteSink, ByteSource, ContainedFilePlugin, DefuseFinding, FileOptions, FileSection } from './types';
 
@@ -162,8 +162,9 @@ const XML: Package<XmlOptions> = {
   plugin: xmlPlugin,
   inspect: inspectXmlSource,
   disarm: disarmXmlSource,
-  // xml-defuse reads the upload's name for one check, a name ending in .hta. A file inside gets its own from the plugin.
-  upload: (o, hints) => (hints.name === undefined ? o : { ...o, name: hints.name }),
+  // xml-defuse reads the upload's name for a name ending in .hta, and the name and declared type to read a style sheet.
+  // A file inside gets its own from the plugin.
+  upload: (o, hints) => ({ ...o, ...(hints.name === undefined ? {} : { name: hints.name }), ...(hints.declaredType === undefined ? {} : { declaredType: hints.declaredType }) }),
   weights: weightsOf(xmlSpecs()),
 };
 
@@ -184,9 +185,9 @@ function textReader(options: FileOptions): Reader {
   const deadlineOf = (timeMs?: number) => (timeMs === undefined ? undefined : Date.now() + timeMs);
   return {
     section: 'text',
-    plugin: textPlugin(reader, (name, declaredType) => textTypesOf({ name, declaredType })),
-    inspect: (source, timeMs, hints) => reader.inspect(source, textTypesOf(hints), deadlineOf(timeMs)),
-    disarm: (source, sink, timeMs, hints) => reader.disarm(source, sink, textTypesOf(hints), deadlineOf(timeMs)),
+    plugin: textPlugin(reader),
+    inspect: (source, timeMs, hints) => reader.inspect(source, hints, deadlineOf(timeMs)),
+    disarm: (source, sink, timeMs, hints) => reader.disarm(source, sink, hints, deadlineOf(timeMs)),
     weigh(findings) {
       for (const f of findings ?? []) f.weight = f.attachment === undefined ? reader.weightOf(f) : (f.weight ?? 0);
     },

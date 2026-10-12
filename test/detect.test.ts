@@ -86,19 +86,40 @@ describe('detection', () => {
     expect(await t(undefined, 'text/csv; charset=utf-8')).to.deep.equal(['text/csv', ['csv']]);
   });
 
-  it('calls text only what decodes and holds no control character but tab, line feed, form feed and carriage return', async () => {
+  it("calls text what decodes and holds only the C0 controls libmagic's text_chars allows", async () => {
     const family = async (b: Buffer) => (await detectFile(b)).family;
     expect(await family(B('tab\tcr\rlf\nff\f'))).to.equal('text');
     expect(await family(Buffer.alloc(0))).to.equal('text');
+    // Bell, backspace, vertical tab and escape are text, as in a log with colours or a man page with overstriking.
+    expect(await family(B('bell\x07 back\bspace vt\x0b \x1b[31mred\x1b[0m'))).to.equal('text');
+    expect(await family(B('na\xefve \x1b[1mbold\x1b[0m'))).to.equal('text');
+    // C1 controls in Unicode text count as text, as libmagic counts them. The text rules remove them.
+    expect(await family(Buffer.from('c1 \u0085', 'utf8'))).to.equal('text');
     expect(await family(B('nul\0'))).to.equal(undefined);
-    expect(await family(B('bell\x07'))).to.equal(undefined);
     expect(await family(B('del\x7f'))).to.equal(undefined);
-    expect(await family(Buffer.from('c1 \u0085', 'utf8'))).to.equal(undefined);
+    expect(await family(B('soh\x01'))).to.equal(undefined);
+    expect(await family(B('fs\x1c'))).to.equal(undefined);
     expect(await family(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from([0x41, 0, 0x00, 0xd8, 0x42, 0])]))).to.equal(undefined);
     // Without a byte order mark, UTF-16 is not text: every other byte is NUL.
     expect(await family(Buffer.from('plain', 'utf16le'))).to.equal(undefined);
     const legacy = await detectFile(B('na\xefve\n'));
     expect([legacy.family, legacy.encoding, legacy.heuristic !== undefined]).to.deep.equal(['text', '8-bit', true]);
+  });
+
+  it('names JSON by content as libmagic does, and YAML and JavaScript by a name, a declared type or a shebang', async () => {
+    const mime = async (b: Buffer, hints = {}) => (await detectFile(b, hints)).mimeType;
+    expect(await mime(B('{"a":[1,2]}'))).to.equal('application/json');
+    expect(await mime(B('{"a":1}\n{"b":2}\n'))).to.equal('application/x-ndjson');
+    // A value that holds no object or array is not JSON to libmagic, nor is text that starts like JSON.
+    expect(await mime(B('"just a string"'))).to.equal('text/plain');
+    expect(await mime(B('[INFO] started'))).to.equal('text/plain');
+    expect(await mime(B(`[${'1,'.repeat(40000)}1`))).to.equal('application/json');
+    expect(await mime(B('a: 1\n'), { name: 'a.yml' })).to.equal('application/yaml');
+    expect(await mime(B('a: 1\n'))).to.equal('text/plain');
+    expect(await mime(B('#!/usr/bin/env node\n'))).to.equal('text/javascript');
+    expect(await mime(B('x\n'), { declaredType: 'application/javascript' })).to.equal('text/javascript');
+    // A name that says JSON keeps the type JSON whatever the content.
+    expect(await mime(B('{"a":1}\n{"b":2}\n'), { name: 'a.json' })).to.equal('application/json');
   });
 
   it('finds a 7z archive after a program, as archive-defuse does, and takes a run of zero bytes for lzma-alone', async () => {
