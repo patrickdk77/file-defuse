@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-10-13
+
+- Requires xml-defuse 0.1.3 or later.
+
 ## 0.1.2 - 2026-10-12
 
 - Text takes the control characters libmagic's text table allows: bell, backspace, vertical tab and escape. A log with colours, a man page with overstriking and a file with a bell used to get TYPE/NO_PACKAGE, and now get the text rules. C1 controls in Unicode text no longer make a file binary either, and the text rules still remove them.
