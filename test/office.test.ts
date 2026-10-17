@@ -6,7 +6,7 @@ import { OfficeCategory, OfficeDetail } from '@patrickdk77/office-defuse';
 import { passThrough } from '@patrickdk77/pdf-defuse';
 import { expect } from 'chai';
 import { disarmFile, inspectFile } from '../src';
-import { entryOf, fixture, kinds, line, makePdf, rejection } from './helpers/util';
+import { entryOf, fixture, line, makePdf, rejection } from './helpers/util';
 
 describe('office section', () => {
   it('routes Office packages, compound files and RTF to office-defuse by content', async () => {
@@ -55,16 +55,17 @@ describe('office section', () => {
     const r = await inspectFile(fixture('embedded.docx'), { office: { filePlugins: [passThrough(['.pdf'])] } });
     const report = r.findings.find(f => f.location === 'word/embeddings/report.pdf' && f.category === 'EMBEDDED' && f.detail.startsWith('PLUGIN_'));
     expect(report?.data).to.deep.include({ plugin: 'passThrough(.pdf)' });
-    expect(kinds(r.findings)).to.not.include('JAVASCRIPT/OPEN_ACTION');
+    expect(r.findings.filter(f => f.attachment?.startsWith('word/embeddings/report.pdf'))).to.deep.equal([]);
     expect(r.findings.find(f => f.location === 'word/embeddings/notes.docx' && f.detail === 'PLUGIN_PASSED')?.data).to.deep.include({ plugin: 'file-defuse' });
   });
 
   it("weighs office-defuse's findings by its weights and the office section's scoreWeights, at every level", async () => {
-    const r = await inspectFile(fixture('embedded.docx'), { office: { scoreWeights: [{ category: OfficeCategory.Embedded, detail: OfficeDetail.Package, weight: 5 }] } });
-    const packages = r.findings.filter(f => f.detail === 'PACKAGE');
-    expect(packages).to.have.length(3);
-    for (const f of packages) expect(f.weight).to.equal(5);
-    expect(r.findings.find(f => f.detail === 'OPEN_ACTION')?.weight).to.equal(70);
+    const r = await inspectFile(fixture('embedded.docx'), { office: { scoreWeights: [{ category: OfficeCategory.Embedded, detail: OfficeDetail.PluginScrubbed, weight: 5 }] } });
+    const scrubbed = r.findings.filter(f => f.category === 'EMBEDDED' && f.detail === 'PLUGIN_SCRUBBED');
+    expect(scrubbed.map(f => f.attachment)).to.deep.equal([undefined, 'word/embeddings/report.pdf > inner.docx']);
+    for (const f of scrubbed) expect(f.weight).to.equal(5);
+    // script-defuse's finding on the script it removed, at script-defuse's weight.
+    expect(r.findings.find(f => f.category === 'SCRIPT_EXTERNAL' && f.detail === 'URL')?.weight).to.equal(60);
   });
 
   it('routes XPS, flat OpenDocument and Flat OPC to office-defuse, and their pictures back through file-defuse', async () => {
@@ -112,13 +113,7 @@ describe('office section', () => {
 
   it('routes an RTF object that holds a PDF through pdf-defuse', async () => {
     const r = await inspectFile(fixture('object.rtf'));
-    expect(r.findings.map(line)).to.deep.equal([
-      'info EMBEDDED/PLUGIN_SCRUBBED',
-      'strip JAVASCRIPT/OPEN_ACTION in report.pdf',
-      'strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf',
-      'strip SCRIPT_EXTERNAL/URL in report.pdf',
-      'info EMBEDDED/OLE_OBJECT',
-    ]);
+    expect(r.findings.map(line)).to.deep.equal(['info EMBEDDED/PLUGIN_SCRUBBED', 'strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf', 'strip SCRIPT_EXTERNAL/URL in report.pdf']);
     // office-defuse's RTF rewrite only cuts. It cannot write the scrubbed PDF back, so the object goes.
     const d = await disarmFile(fixture('object.rtf'));
     expect(d.status).to.equal('defused');
@@ -129,19 +124,12 @@ describe('office section', () => {
 
   it('disarms a compound file holding an embedded PDF', async () => {
     const r = await inspectFile(fixture('message.msg'));
-    expect([r.package, ...r.findings.map(line)]).to.deep.equal([
-      'office',
-      'info EMBEDDED/PLUGIN_SCRUBBED',
-      'strip JAVASCRIPT/OPEN_ACTION in report.pdf',
-      'strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf',
-      'strip SCRIPT_EXTERNAL/URL in report.pdf',
-      'info EMBEDDED/ATTACHMENT',
-    ]);
+    expect([r.package, ...r.findings.map(line)]).to.deep.equal(['office', 'info EMBEDDED/PLUGIN_SCRUBBED', 'strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf', 'strip SCRIPT_EXTERNAL/URL in report.pdf']);
     const d = await disarmFile(fixture('message.msg'));
     expect(d.status).to.equal('defused');
     const out = d.bytes ?? Buffer.alloc(0);
     expect(out.subarray(0, 8)).to.deep.equal(Buffer.from('d0cf11e0a1b11ae1', 'hex'));
     const again = await inspectFile(out);
-    expect([again.status, ...again.findings.map(line)]).to.deep.equal(['clean', 'info EMBEDDED/PLUGIN_PASSED', 'info EMBEDDED/ATTACHMENT']);
+    expect([again.status, ...again.findings.map(line)]).to.deep.equal(['clean', 'info EMBEDDED/PLUGIN_PASSED']);
   });
 });

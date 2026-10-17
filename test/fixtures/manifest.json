@@ -20,7 +20,6 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf > level2.pdf",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf > level2.pdf > level3.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in level1.pdf > level2.pdf > level3.pdf > level4.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in level1.pdf > level2.pdf > level3.pdf > level4.pdf",
         "strip SCRIPT_EXTERNAL/URL in level1.pdf > level2.pdf > level3.pdf > level4.pdf"
       ]
@@ -227,7 +226,6 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
         "strip ENCRYPTED/USER_PASSWORD in inner.pdf",
         "info ENCRYPTED/AES_256 in inner.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in inner.pdf",
         "strip SCRIPT_EXTERNAL/URL in inner.pdf"
       ]
@@ -249,7 +247,6 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
         "strip ENCRYPTED/USER_PASSWORD in inner.pdf",
         "info ENCRYPTED/AES_256 in inner.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in inner.pdf",
         "strip SCRIPT_EXTERNAL/URL in inner.pdf"
       ]
@@ -266,7 +263,6 @@
         "strip EMBEDDED_FILE/PLUGIN_REMOVED",
         "strip STRUCTURE/BAD_LAYOUT in picture.png",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
-        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
         "strip SCRIPT_EXTERNAL/URL in report.pdf"
       ]
@@ -309,13 +305,9 @@
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in word/embeddings/report.pdf",
         "info EMBEDDED/PLUGIN_SCRUBBED in word/embeddings/report.pdf > inner.docx",
-        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
         "strip SCRIPT_EXTERNAL/URL in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
-        "info EMBEDDED/PACKAGE in word/embeddings/report.pdf > inner.docx",
-        "info EMBEDDED/PACKAGE",
-        "info EMBEDDED/PLUGIN_PASSED",
-        "info EMBEDDED/PACKAGE"
+        "info EMBEDDED/PLUGIN_PASSED"
       ]
     },
     {
@@ -346,11 +338,8 @@
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in word/embeddings/report.pdf",
         "info EMBEDDED/PLUGIN_SCRUBBED in word/embeddings/report.pdf > inner.docx",
-        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
         "strip SCRIPT_EXTERNAL/URL in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
-        "info EMBEDDED/PACKAGE in word/embeddings/report.pdf > inner.docx",
-        "info EMBEDDED/PACKAGE",
         "reject LIMIT/FILE_COUNT"
       ]
     },
@@ -376,8 +365,7 @@
         "strip ENCRYPTED/USER_PASSWORD",
         "info ENCRYPTED/AES_256",
         "strip EMBEDDED/PLUGIN_REMOVED",
-        "strip ENCRYPTED/PASSWORD_REQUIRED in word/embeddings/secret.pdf",
-        "strip EMBEDDED/PACKAGE"
+        "strip ENCRYPTED/PASSWORD_REQUIRED in word/embeddings/secret.pdf"
       ]
     },
     {
@@ -397,10 +385,8 @@
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "strip ENCRYPTED/USER_PASSWORD in word/embeddings/secret.pdf",
         "info ENCRYPTED/AES_256 in word/embeddings/secret.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/secret.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/secret.pdf",
-        "strip SCRIPT_EXTERNAL/URL in word/embeddings/secret.pdf",
-        "info EMBEDDED/PACKAGE"
+        "strip SCRIPT_EXTERNAL/URL in word/embeddings/secret.pdf"
       ]
     },
     {
@@ -420,10 +406,8 @@
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "strip ENCRYPTED/USER_PASSWORD in word/embeddings/secret.pdf",
         "info ENCRYPTED/AES_256 in word/embeddings/secret.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/secret.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/secret.pdf",
-        "strip SCRIPT_EXTERNAL/URL in word/embeddings/secret.pdf",
-        "info EMBEDDED/PACKAGE"
+        "strip SCRIPT_EXTERNAL/URL in word/embeddings/secret.pdf"
       ]
     },
     {
@@ -632,8 +616,7 @@
         "info SCRIPT_FORM/DOCUMENT_MACRO",
         "info MACRO/PLUGIN_PASSED",
         "info SCRIPT_FORM/DOCUMENT_MACRO",
-        "strip MACRO/COMPILED_CODE",
-        "info MACRO/VBA_PROJECT"
+        "strip MACRO/COMPILED_CODE"
       ]
     },
     {
@@ -646,8 +629,7 @@
         "info MACRO/PLUGIN_PASSED",
         "info SCRIPT_FORM/DOCUMENT_MACRO",
         "strip MACRO/PLUGIN_REMOVED",
-        "strip SCRIPT_EXTERNAL/PROCESS",
-        "strip MACRO/VBA_PROJECT"
+        "strip SCRIPT_EXTERNAL/PROCESS"
       ]
     },
     {
@@ -663,13 +645,11 @@
         "info MACRO/PLUGIN_PASSED in macros.xlsm",
         "info SCRIPT_FORM/DOCUMENT_MACRO in macros.xlsm",
         "strip MACRO/COMPILED_CODE in macros.xlsm",
-        "info MACRO/VBA_PROJECT in macros.xlsm",
         "info ENTRY/PLUGIN_SCRUBBED",
         "info MACRO/PLUGIN_PASSED in shell-macro.xlsm",
         "info SCRIPT_FORM/DOCUMENT_MACRO in shell-macro.xlsm",
         "strip MACRO/PLUGIN_REMOVED in shell-macro.xlsm",
-        "strip SCRIPT_EXTERNAL/PROCESS in shell-macro.xlsm",
-        "strip MACRO/VBA_PROJECT in shell-macro.xlsm"
+        "strip SCRIPT_EXTERNAL/PROCESS in shell-macro.xlsm"
       ]
     },
     {
@@ -682,7 +662,6 @@
         "info MACRO/PLUGIN_PASSED",
         "info SCRIPT_FORM/DOCUMENT_MACRO",
         "strip MACRO/COMPILED_CODE",
-        "info MACRO/VBA_PROJECT",
         "info CONTROL/FORMS_CONTROL"
       ]
     },
@@ -706,8 +685,7 @@
       "findings": [
         "info MACRO/PLUGIN_PASSED",
         "info SCRIPT_FORM/DOCUMENT_MACRO",
-        "strip MACRO/COMPILED_CODE",
-        "info MACRO/VBA_PROJECT"
+        "strip MACRO/COMPILED_CODE"
       ]
     },
     {
@@ -720,7 +698,6 @@
         "info MACRO/PLUGIN_PASSED",
         "info SCRIPT_FORM/DOCUMENT_MACRO",
         "strip MACRO/COMPILED_CODE",
-        "info MACRO/VBA_PROJECT",
         "info MACRO/LINK"
       ]
     },
@@ -742,10 +719,8 @@
       "disarm": "defused",
       "findings": [
         "info EMBEDDED/PLUGIN_SCRUBBED",
-        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
-        "strip SCRIPT_EXTERNAL/URL in report.pdf",
-        "info EMBEDDED/OLE_OBJECT"
+        "strip SCRIPT_EXTERNAL/URL in report.pdf"
       ]
     },
     {
@@ -756,10 +731,8 @@
       "disarm": "defused",
       "findings": [
         "info EMBEDDED/PLUGIN_SCRUBBED",
-        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
-        "strip SCRIPT_EXTERNAL/URL in report.pdf",
-        "info EMBEDDED/ATTACHMENT"
+        "strip SCRIPT_EXTERNAL/URL in report.pdf"
       ]
     },
     {
@@ -989,10 +962,8 @@
       "disarm": "defused",
       "findings": [
         "info EMBEDDED/PLUGIN_SCRUBBED",
-        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
         "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
-        "strip SCRIPT_EXTERNAL/URL in report.pdf",
-        "info EMBEDDED/ATTACHMENT"
+        "strip SCRIPT_EXTERNAL/URL in report.pdf"
       ]
     }
   ]

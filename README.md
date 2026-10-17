@@ -236,17 +236,20 @@ A `.js`, `.mjs` or `.cjs` file, a JavaScript type, or a file behind a `node`, `d
 
 ```
 $ file-defuse inspect test/fixtures/nested.pdf
-inspection: strippable, risk HIGH (score 70), read by pdf
+inspection: strippable, risk HIGH (score 60), read by pdf
   info   EMBEDDED_FILE/PLUGIN_SCRUBBED [attachment "level1.pdf"]: Attached file cleaned and kept by plugin file-defuse
   info   EMBEDDED_FILE/PLUGIN_SCRUBBED [attachment "level1.pdf" > attachment "level2.pdf"]: Attached file cleaned and kept by plugin file-defuse
   info   EMBEDDED_FILE/PLUGIN_SCRUBBED [attachment "level1.pdf" > attachment "level2.pdf" > attachment "level3.pdf"]: Attached file cleaned and kept by plugin file-defuse
   info   EMBEDDED_FILE/PLUGIN_SCRUBBED [attachment "level1.pdf" > attachment "level2.pdf" > attachment "level3.pdf" > attachment "level4.pdf"]: Attached file cleaned and kept by plugin file-defuse
-  strip  JAVASCRIPT/OPEN_ACTION [attachment "level1.pdf" > attachment "level2.pdf" > attachment "level3.pdf" > attachment "level4.pdf" > document open action]: JavaScript runs when the PDF opens
+  strip  JAVASCRIPT/PLUGIN_REMOVED [attachment "level1.pdf" > attachment "level2.pdf" > attachment "level3.pdf" > attachment "level4.pdf" > document open action]: JavaScript removed by plugin script-defuse
+  strip  SCRIPT_EXTERNAL/URL [attachment "level1.pdf" > attachment "level2.pdf" > attachment "level3.pdf" > attachment "level4.pdf" > document open action, line 1]: app.launchURL opens a web address
 ```
 
-The script's finding has `attachment` set to `level1.pdf > level2.pdf > level3.pdf > level4.pdf`. The path crosses packages the same way. `embedded.docx` embeds a PDF that has a .docx attached, which embeds a PDF with a script, and that script's finding has `attachment` set to `word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf`. In `picture.docx`, img-defuse's STRUCTURE/TRAILING_DATA for the picture has `attachment` set to `word/media/image1.png`, and the rewritten .docx holds img-defuse's copy of the picture.
+The script's findings have `attachment` set to `level1.pdf > level2.pdf > level3.pdf > level4.pdf`. script-defuse answered for the script, so the report holds its answer and what it found, and the score is script-defuse's 60 for the web address. The path crosses packages the same way. `embedded.docx` embeds a PDF that has a .docx attached, which embeds a PDF with a script, and that script's finding has `attachment` set to `word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf`. In `picture.docx`, img-defuse's STRUCTURE/TRAILING_DATA for the picture has `attachment` set to `word/media/image1.png`, and the rewritten .docx holds img-defuse's copy of the picture.
 
 Every finding has a `weight`, the amount it adds to a score. A finding of the upload's own gets the weight its package gives that kind, after the section's `scoreWeights`. A finding from inside a file keeps the weight the package that made it gave it, as `pdfPlugin` does in pdf-defuse. A container in another package can score them all from that.
+
+A plugin's answer is final in every package. A script or file a plugin answered for scores only by the findings the plugin returned, and the PLUGIN_PASSED and PLUGIN_SCRUBBED findings that record the answer weigh 0. A form whose scripts script-defuse keeps scores 0 when nothing else in it weighs anything, and so does a ZIP that holds it.
 
 ## A file no package reads
 

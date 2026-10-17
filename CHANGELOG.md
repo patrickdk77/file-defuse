@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-10-17
+
+- A script or file a plugin answered for scores what the plugin found in it, and nothing else, in every package. A PDF form whose scripts script-defuse keeps scored HIGH through 0.1.4, because pdf-defuse still weighed each kept script at its own 50 or 70. It scores 0 now when nothing else in it weighs anything, as the upload, inside an archive or another document, and as the defused output.
+- Reports no longer list a package's own finding next to a plugin's answer, such as JAVASCRIPT/OPEN_ACTION beside JAVASCRIPT/PLUGIN_REMOVED, or EMBEDDED/PACKAGE and MACRO/VBA_PROJECT beside the plugin's.
+- Requires script-defuse 0.3.0, pdf-defuse 0.3.0, office-defuse 0.3.0, archive-defuse 0.2.0, xml-defuse 0.2.0 and img-defuse 0.3.0.
+
 ## 0.1.4 - 2026-10-16
 
 - PDF scripts go to script-defuse. Every PDF, the upload or one inside it, gets a `formScriptPlugin` of its own after the `pdf` section's `scriptPlugins`, so the AcroForm and XFA scripts that only format, check or calculate form fields stay. 0.1.3 removed every script.

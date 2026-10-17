@@ -101,7 +101,6 @@ describe('script-defuse in the office route', () => {
       'info SCRIPT_FORM/DOCUMENT_MACRO',
       'info MACRO/PLUGIN_PASSED',
       'info SCRIPT_FORM/DOCUMENT_MACRO',
-      'info MACRO/VBA_PROJECT',
     ]);
   });
 
@@ -121,7 +120,8 @@ describe('script-defuse in the office route', () => {
     };
     const r = await inspectFile(fixture('macros.xlsm'), { office: { scriptPlugins: [refuse] } });
     expect(r.findings.filter(f => f.detail === 'PLUGIN_REMOVED').map(f => f.data?.plugin)).to.deep.equal(['refuse-all', 'refuse-all']);
-    expect(r.findings.find(f => f.detail === 'VBA_PROJECT')?.action).to.equal('strip');
+    // The plugin's answer removed the project, so office-defuse reports nothing of its own about it.
+    expect([r.status, r.findings.filter(f => f.detail === 'VBA_PROJECT').length]).to.deep.equal(['strippable', 0]);
   });
 });
 

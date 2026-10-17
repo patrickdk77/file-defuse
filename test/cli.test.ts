@@ -63,14 +63,14 @@ describe('command line', () => {
     const file = write('pw.txt', 'outer pass\r\n\r\n\ninner pass\n');
     const r = runCli(['inspect', fx('passwords.pdf'), '--password-file', file]);
     expect(r.status).to.equal(1);
-    expect(r.stdout.toString()).to.include('JAVASCRIPT/OPEN_ACTION');
+    expect(r.stdout.toString()).to.include('JAVASCRIPT/PLUGIN_REMOVED');
   });
 
   it('gives the password list to every package', () => {
     const file = write('both.txt', 'pdf pass\noffice pass\n');
     const r = runCli(['inspect', fx('passwords.docx'), '--password-file', file]);
     expect(r.status).to.equal(1);
-    expect(r.stdout.toString()).to.include('JAVASCRIPT/OPEN_ACTION');
+    expect(r.stdout.toString()).to.include('JAVASCRIPT/PLUGIN_REMOVED');
   });
 
   it('takes one password from FILE_DEFUSE_PASSWORD, and --password-file replaces it', () => {

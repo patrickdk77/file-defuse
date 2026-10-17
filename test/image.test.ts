@@ -68,7 +68,8 @@ describe('image section', () => {
 
   it("weighs img-defuse's findings by its weights and the image section's scoreWeights", async () => {
     const weight = (findings: Array<{ detail: string; weight?: number }>) => findings.find(f => f.detail === 'PLUGIN_PASSED')?.weight;
-    expect(weight((await inspectFile(fixture('photo.jpg'))).findings)).to.equal(6);
+    // The finding that records a plugin's answer weighs nothing, unless the section says otherwise.
+    expect(weight((await inspectFile(fixture('photo.jpg'))).findings)).to.equal(0);
     const r = await inspectFile(fixture('photo.jpg'), { image: { scoreWeights: [{ category: ImageCategory.EmbeddedImage, detail: ImageDetail.PluginPassed, weight: 9 }] } });
     expect(weight(r.findings)).to.equal(9);
   });

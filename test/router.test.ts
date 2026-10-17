@@ -175,7 +175,7 @@ describe('tree limits', () => {
 describe('options for the packages', () => {
   it('gives the top-level password list to every PDF, and a section password wins over it', async () => {
     const both = { password: ['outer pass', 'inner pass'] };
-    expect((await inspectFile(fixture('passwords.pdf'), both)).findings.map(line)).to.include('strip JAVASCRIPT/OPEN_ACTION in inner.pdf');
+    expect((await inspectFile(fixture('passwords.pdf'), both)).findings.map(line)).to.include('strip JAVASCRIPT/PLUGIN_REMOVED in inner.pdf');
     const r = await inspectFile(fixture('passwords.pdf'), { ...both, pdf: { password: 'wrong' } });
     expect(r.findings.map(line)).to.deep.equal(['reject ENCRYPTED/PASSWORD_REQUIRED']);
   });
@@ -226,14 +226,15 @@ describe('options for the packages', () => {
     const scrubbed = r.findings.filter(f => f.detail === 'PLUGIN_SCRUBBED');
     expect(scrubbed).to.have.length(4);
     for (const f of scrubbed) expect(f.weight).to.equal(7);
-    expect(r.findings.find(f => f.detail === 'OPEN_ACTION')?.weight).to.equal(70);
+    // script-defuse's finding on the script it removed, at script-defuse's weight.
+    expect(r.findings.find(f => f.category === 'SCRIPT_EXTERNAL' && f.detail === 'URL')?.weight).to.equal(60);
   });
 });
 
 describe('filePlugin', () => {
   it('routes files inside a pdf-defuse run of the caller', async () => {
     const r = await inspectPdf(nest(2, makePdf({ js: true })), { filePlugins: [filePlugin()] });
-    expect(r.findings.map(line)).to.include('strip JAVASCRIPT/OPEN_ACTION in level1.pdf > level2.pdf');
+    expect(r.findings.map(line)).to.include('strip JAVASCRIPT/PLUGIN_REMOVED in level1.pdf > level2.pdf');
   });
 
   it('accepts files a package reads, by content alone', async () => {
