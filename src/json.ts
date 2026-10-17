@@ -91,7 +91,7 @@ interface StringToken {
   /** A key, or a value the source map rules read. Only these are decoded. */
   decode: boolean;
   value: string;
-  escape: boolean;
+  escaped: boolean;
   unicode: number;
   unicodeValue: number;
   escapeAt: number;
@@ -307,7 +307,7 @@ export class JsonScanner {
     this.token = STRING;
     const role = key ? undefined : this.sourceMapRole();
     if (role === 'content' && this.sm && !this.sm.content) this.sm.content = this.line;
-    this.str = { start: at, decode: key || role === 'url', value: '', escape: false, unicode: -1, unicodeValue: 0, escapeAt: 0 };
+    this.str = { start: at, decode: key || role === 'url', value: '', escaped: false, unicode: -1, unicodeValue: 0, escapeAt: 0 };
     if (key) this.expect = COLON;
   }
 
@@ -349,8 +349,8 @@ export class JsonScanner {
       if (s.decode) s.value += String.fromCharCode(v);
       return;
     }
-    if (s.escape) {
-      s.escape = false;
+    if (s.escaped) {
+      s.escaped = false;
       if (cp === 0x75) {
         s.unicode = 0;
         s.unicodeValue = 0;
@@ -366,7 +366,7 @@ export class JsonScanner {
       return;
     }
     if (cp === 0x5c) {
-      s.escape = true;
+      s.escaped = true;
       s.escapeAt = at;
       return;
     }

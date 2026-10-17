@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-10-17
+
+- The JSON reader's flag for a backslash it just read is `escaped`, not `escape`. Security scanners match Node's global names in built code.
+- Requires script-defuse 0.3.1, pdf-defuse 0.3.1, office-defuse 0.3.1, archive-defuse 0.2.1, xml-defuse 0.2.1 and img-defuse 0.3.1, which rename theirs the same way. Nothing else changes.
+
 ## 0.2.0 - 2026-10-17
 
 - A script or file a plugin answered for scores what the plugin found in it, and nothing else, in every package. A PDF form whose scripts script-defuse keeps scored HIGH through 0.1.4, because pdf-defuse still weighed each kept script at its own 50 or 70. It scores 0 now when nothing else in it weighs anything, as the upload, inside an archive or another document, and as the defused output.
