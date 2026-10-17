@@ -112,7 +112,13 @@ describe('office section', () => {
 
   it('routes an RTF object that holds a PDF through pdf-defuse', async () => {
     const r = await inspectFile(fixture('object.rtf'));
-    expect(r.findings.map(line)).to.deep.equal(['info EMBEDDED/PLUGIN_SCRUBBED', 'strip JAVASCRIPT/OPEN_ACTION in report.pdf', 'info EMBEDDED/OLE_OBJECT']);
+    expect(r.findings.map(line)).to.deep.equal([
+      'info EMBEDDED/PLUGIN_SCRUBBED',
+      'strip JAVASCRIPT/OPEN_ACTION in report.pdf',
+      'strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf',
+      'strip SCRIPT_EXTERNAL/URL in report.pdf',
+      'info EMBEDDED/OLE_OBJECT',
+    ]);
     // office-defuse's RTF rewrite only cuts. It cannot write the scrubbed PDF back, so the object goes.
     const d = await disarmFile(fixture('object.rtf'));
     expect(d.status).to.equal('defused');
@@ -123,7 +129,14 @@ describe('office section', () => {
 
   it('disarms a compound file holding an embedded PDF', async () => {
     const r = await inspectFile(fixture('message.msg'));
-    expect([r.package, ...r.findings.map(line)]).to.deep.equal(['office', 'info EMBEDDED/PLUGIN_SCRUBBED', 'strip JAVASCRIPT/OPEN_ACTION in report.pdf', 'info EMBEDDED/ATTACHMENT']);
+    expect([r.package, ...r.findings.map(line)]).to.deep.equal([
+      'office',
+      'info EMBEDDED/PLUGIN_SCRUBBED',
+      'strip JAVASCRIPT/OPEN_ACTION in report.pdf',
+      'strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf',
+      'strip SCRIPT_EXTERNAL/URL in report.pdf',
+      'info EMBEDDED/ATTACHMENT',
+    ]);
     const d = await disarmFile(fixture('message.msg'));
     expect(d.status).to.equal('defused');
     const out = d.bytes ?? Buffer.alloc(0);

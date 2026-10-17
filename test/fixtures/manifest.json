@@ -20,7 +20,9 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf > level2.pdf",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in level1.pdf > level2.pdf > level3.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in level1.pdf > level2.pdf > level3.pdf > level4.pdf"
+        "strip JAVASCRIPT/OPEN_ACTION in level1.pdf > level2.pdf > level3.pdf > level4.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in level1.pdf > level2.pdf > level3.pdf > level4.pdf",
+        "strip SCRIPT_EXTERNAL/URL in level1.pdf > level2.pdf > level3.pdf > level4.pdf"
       ]
     },
     {
@@ -225,7 +227,9 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
         "strip ENCRYPTED/USER_PASSWORD in inner.pdf",
         "info ENCRYPTED/AES_256 in inner.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf"
+        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in inner.pdf",
+        "strip SCRIPT_EXTERNAL/URL in inner.pdf"
       ]
     },
     {
@@ -245,7 +249,9 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
         "strip ENCRYPTED/USER_PASSWORD in inner.pdf",
         "info ENCRYPTED/AES_256 in inner.pdf",
-        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf"
+        "strip JAVASCRIPT/OPEN_ACTION in inner.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in inner.pdf",
+        "strip SCRIPT_EXTERNAL/URL in inner.pdf"
       ]
     },
     {
@@ -260,7 +266,9 @@
         "strip EMBEDDED_FILE/PLUGIN_REMOVED",
         "strip STRUCTURE/BAD_LAYOUT in picture.png",
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED",
-        "strip JAVASCRIPT/OPEN_ACTION in report.pdf"
+        "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
+        "strip SCRIPT_EXTERNAL/URL in report.pdf"
       ]
     },
     {
@@ -302,6 +310,8 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in word/embeddings/report.pdf",
         "info EMBEDDED/PLUGIN_SCRUBBED in word/embeddings/report.pdf > inner.docx",
         "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
+        "strip SCRIPT_EXTERNAL/URL in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
         "info EMBEDDED/PACKAGE in word/embeddings/report.pdf > inner.docx",
         "info EMBEDDED/PACKAGE",
         "info EMBEDDED/PLUGIN_PASSED",
@@ -337,6 +347,8 @@
         "info EMBEDDED_FILE/PLUGIN_SCRUBBED in word/embeddings/report.pdf",
         "info EMBEDDED/PLUGIN_SCRUBBED in word/embeddings/report.pdf > inner.docx",
         "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
+        "strip SCRIPT_EXTERNAL/URL in word/embeddings/report.pdf > inner.docx > word/embeddings/final.pdf",
         "info EMBEDDED/PACKAGE in word/embeddings/report.pdf > inner.docx",
         "info EMBEDDED/PACKAGE",
         "reject LIMIT/FILE_COUNT"
@@ -386,6 +398,8 @@
         "strip ENCRYPTED/USER_PASSWORD in word/embeddings/secret.pdf",
         "info ENCRYPTED/AES_256 in word/embeddings/secret.pdf",
         "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/secret.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/secret.pdf",
+        "strip SCRIPT_EXTERNAL/URL in word/embeddings/secret.pdf",
         "info EMBEDDED/PACKAGE"
       ]
     },
@@ -407,6 +421,8 @@
         "strip ENCRYPTED/USER_PASSWORD in word/embeddings/secret.pdf",
         "info ENCRYPTED/AES_256 in word/embeddings/secret.pdf",
         "strip JAVASCRIPT/OPEN_ACTION in word/embeddings/secret.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in word/embeddings/secret.pdf",
+        "strip SCRIPT_EXTERNAL/URL in word/embeddings/secret.pdf",
         "info EMBEDDED/PACKAGE"
       ]
     },
@@ -606,6 +622,109 @@
       ]
     },
     {
+      "file": "macros.xlsm",
+      "about": "A workbook whose VBA project fills a cell when it opens and adds up a column, each module after its compiled p-code. script-defuse passes both modules, so the project stays without the p-code.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info MACRO/PLUGIN_PASSED",
+        "info SCRIPT_FORM/DOCUMENT_MACRO",
+        "info MACRO/PLUGIN_PASSED",
+        "info SCRIPT_FORM/DOCUMENT_MACRO",
+        "strip MACRO/COMPILED_CODE",
+        "info MACRO/VBA_PROJECT"
+      ]
+    },
+    {
+      "file": "shell-macro.xlsm",
+      "about": "The same workbook with a code module that starts a program. script-defuse removes that module, so the project goes.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info MACRO/PLUGIN_PASSED",
+        "info SCRIPT_FORM/DOCUMENT_MACRO",
+        "strip MACRO/PLUGIN_REMOVED",
+        "strip SCRIPT_EXTERNAL/PROCESS",
+        "strip MACRO/VBA_PROJECT"
+      ]
+    },
+    {
+      "file": "macros.zip",
+      "about": "Both workbooks in a ZIP archive. Each is decided on its own: the first keeps its project and the second loses it.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info ENTRY/PLUGIN_SCRUBBED",
+        "info MACRO/PLUGIN_PASSED in macros.xlsm",
+        "info SCRIPT_FORM/DOCUMENT_MACRO in macros.xlsm",
+        "info MACRO/PLUGIN_PASSED in macros.xlsm",
+        "info SCRIPT_FORM/DOCUMENT_MACRO in macros.xlsm",
+        "strip MACRO/COMPILED_CODE in macros.xlsm",
+        "info MACRO/VBA_PROJECT in macros.xlsm",
+        "info ENTRY/PLUGIN_SCRUBBED",
+        "info MACRO/PLUGIN_PASSED in shell-macro.xlsm",
+        "info SCRIPT_FORM/DOCUMENT_MACRO in shell-macro.xlsm",
+        "strip MACRO/PLUGIN_REMOVED in shell-macro.xlsm",
+        "strip SCRIPT_EXTERNAL/PROCESS in shell-macro.xlsm",
+        "strip MACRO/VBA_PROJECT in shell-macro.xlsm"
+      ]
+    },
+    {
+      "file": "controls.xlsm",
+      "about": "A workbook with a Forms 2.0 check box on its sheet, whose click the sheet's VBA module handles. The check box's persisted properties read as Office writes them, so it stays, and so does the project, without its compiled code.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info MACRO/PLUGIN_PASSED",
+        "info SCRIPT_FORM/DOCUMENT_MACRO",
+        "strip MACRO/COMPILED_CODE",
+        "info MACRO/VBA_PROJECT",
+        "info CONTROL/FORMS_CONTROL"
+      ]
+    },
+    {
+      "file": "xlm.xls",
+      "about": "An Excel 97 workbook with an Excel 4.0 macro sheet and the built-in Auto_Open name that runs it. The rewrite makes the macro sheet an empty worksheet and renames the name.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "strip MACRO/EVENT_ON_OPEN",
+        "strip MACRO/XLM_MACROSHEET"
+      ]
+    },
+    {
+      "file": "addin.ppa",
+      "about": "A PowerPoint 97 add-in, whose root is its VBA project. script-defuse passes its module, so the project stays without its compiled code.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info MACRO/PLUGIN_PASSED",
+        "info SCRIPT_FORM/DOCUMENT_MACRO",
+        "strip MACRO/COMPILED_CODE",
+        "info MACRO/VBA_PROJECT"
+      ]
+    },
+    {
+      "file": "macros.ppt",
+      "about": "A PowerPoint 97 presentation whose VBA project is stored compressed, with a slide action that runs one of its macros. The project stays without its compiled code, and so does the action.",
+      "options": {},
+      "inspect": "strippable",
+      "disarm": "defused",
+      "findings": [
+        "info MACRO/PLUGIN_PASSED",
+        "info SCRIPT_FORM/DOCUMENT_MACRO",
+        "strip MACRO/COMPILED_CODE",
+        "info MACRO/VBA_PROJECT",
+        "info MACRO/LINK"
+      ]
+    },
+    {
       "file": "field.rtf",
       "about": "An RTF document with a DDEAUTO field.",
       "options": {},
@@ -624,6 +743,8 @@
       "findings": [
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
+        "strip SCRIPT_EXTERNAL/URL in report.pdf",
         "info EMBEDDED/OLE_OBJECT"
       ]
     },
@@ -636,6 +757,8 @@
       "findings": [
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
+        "strip SCRIPT_EXTERNAL/URL in report.pdf",
         "info EMBEDDED/ATTACHMENT"
       ]
     },
@@ -867,6 +990,8 @@
       "findings": [
         "info EMBEDDED/PLUGIN_SCRUBBED",
         "strip JAVASCRIPT/OPEN_ACTION in report.pdf",
+        "strip JAVASCRIPT/PLUGIN_REMOVED in report.pdf",
+        "strip SCRIPT_EXTERNAL/URL in report.pdf",
         "info EMBEDDED/ATTACHMENT"
       ]
     }

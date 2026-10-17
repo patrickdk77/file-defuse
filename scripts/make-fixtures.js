@@ -66,7 +66,7 @@ function pdf({ attachments = [], js = false, pad = 0, info = false, password } =
   const add = body => objects.push(body);
   const names = attachments.map((a, i) => `${str(a.name)} ${6 + 2 * i} 0 R`).join(' ');
   add(
-    `<< /Type /Catalog /Pages 2 0 R${attachments.length ? ` /Names << /EmbeddedFiles << /Names [${names}] >> >>` : ''}${js ? ` /OpenAction << /S /JavaScript /JS ${str('app.alert(1)')} >>` : ''} >>`,
+    `<< /Type /Catalog /Pages 2 0 R${attachments.length ? ` /Names << /EmbeddedFiles << /Names [${names}] >> >>` : ''}${js ? ` /OpenAction << /S /JavaScript /JS ${str('app.launchURL("https://example.invalid/")')} >>` : ''} >>`,
   );
   add('<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>');
   add('<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
@@ -1015,6 +1015,281 @@ const formats = {
   binary: [Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]), 'application/octet-stream', '', undefined],
 };
 
+/**
+ * An MS-OVBA CompressedContainer (2.4.1) with every token a literal: a flag byte of zeros before each eight bytes. A
+ * full chunk of literals passes 4,096 bytes, so it is written raw. This is not office-defuse's compressor.
+ */
+function ovba(data) {
+  const out = [Buffer.from([1])];
+  for (let start = 0; start < data.length; start += 4096) {
+    const chunk = data.subarray(start, start + 4096);
+    if (chunk.length === 4096) {
+      out.push(Buffer.from([0xff, 0x3f]), chunk);
+      continue;
+    }
+    const body = [];
+    for (let i = 0; i < chunk.length; i += 8) body.push(Buffer.from([0]), chunk.subarray(i, i + 8));
+    const b = Buffer.concat(body);
+    if (b.length > 4096) throw new Error('a last chunk of literals past 4,096 bytes');
+    const head = Buffer.alloc(2);
+    head.writeUInt16LE(0xb000 | (b.length - 1));
+    out.push(head, b);
+  }
+  return Buffer.concat(out);
+}
+
+/**
+ * A vbaProject.bin (MS-OVBA 2.2) holding `modules`, each { name, kind: 'document' | 'standard', source }: the PROJECT
+ * stream, and a VBA storage with a dir stream, a compiled-code header, a performance cache, and each module's p-code
+ * followed by its source.
+ */
+function vbaStorages(modules) {
+  const record = (id, data = Buffer.alloc(0)) => {
+    const head = Buffer.alloc(6);
+    head.writeUInt16LE(id, 0);
+    head.writeUInt32LE(data.length, 2);
+    return Buffer.concat([head, data]);
+  };
+  const u16 = n => Buffer.from([n & 0xff, n >> 8]);
+  const u32 = n => {
+    const b = Buffer.alloc(4);
+    b.writeUInt32LE(n);
+    return b;
+  };
+  const pcode = B('\x01\x16\x03\x00inert p-code');
+  const version = Buffer.alloc(16);
+  version.writeUInt16LE(0x0009, 0);
+  version.writeUInt32LE(4, 2);
+  version.writeUInt32LE(1, 6);
+  const records = [record(0x0001, u32(1)), record(0x0002, u32(0x0409)), record(0x0014, u32(0x0409)), record(0x0003, u16(1252)), record(0x0004, B('VBAProject'))];
+  records.push(record(0x0005), record(0x0040), record(0x0006), record(0x003d), record(0x0007, u32(0)), record(0x0008, u32(0)), version.subarray(0, 12), record(0x000c), record(0x003c));
+  records.push(record(0x000f, u16(modules.length)), record(0x0013, u16(0xffff)));
+  const streams = [];
+  const project = ['ID="{6A1B2C3D-4E5F-4071-8293-A4B5C6D7E8F9}"'];
+  for (const m of modules) {
+    const name = B(m.name);
+    const wide = Buffer.from(m.name, 'utf16le');
+    records.push(record(0x0019, name), record(0x0047, wide), record(0x001a, name), record(0x0032, wide), record(0x001c), record(0x0048));
+    records.push(record(0x0031, u32(pcode.length)), record(0x001e, u32(0)), record(0x002c, u16(0xffff)), record(m.kind === 'standard' ? 0x0021 : 0x0022), record(0x002b));
+    streams.push({ name: m.name, data: Buffer.concat([pcode, ovba(B(`Attribute VB_Name = "${m.name}"\r\n${m.source.replace(/\n/g, '\r\n')}`))]) });
+    project.push(m.kind === 'standard' ? `Module=${m.name}` : `Document=${m.name}/&H00000000`);
+  }
+  records.push(record(0x0010));
+  project.push('Name="VBAProject"', 'HelpContextID="0"', '');
+  return [
+    { name: 'PROJECT', data: B(project.join('\r\n')) },
+    { name: 'PROJECTwm', data: Buffer.alloc(2) },
+    {
+      name: 'VBA',
+      children: [
+        { name: 'dir', data: ovba(Buffer.concat(records)) },
+        { name: '_VBA_PROJECT', data: B('\xcc\x61\xb5\x00\x00\x03\x00inert performance cache') },
+        { name: '__SRP_0', data: B('inert cache') },
+        ...streams,
+      ],
+    },
+  ];
+}
+const vbaProject = modules => cfb(vbaStorages(modules));
+
+/** A one-sheet .xlsm whose VBA project holds a workbook module and `code` in a code module. */
+function xlsm(code) {
+  const xml = s => B(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${s}`);
+  const S = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const types =
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '<Override PartName="/xl/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/></Types>';
+  const rels = `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PKG_REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const workbookRels = `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PKG_REL}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>`;
+  const workbook = `<workbook xmlns="${S}" xmlns:r="${PKG_REL}"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const project = vbaProject([
+    { name: 'ThisWorkbook', kind: 'document', source: 'Sub Workbook_Open()\n    inertOpened = True\n    Worksheets(1).Cells(5, 2).Value = "Inert opened"\nEnd Sub\n' },
+    { name: 'Inert', kind: 'standard', source: code },
+  ]);
+  return zip([
+    ['[Content_Types].xml', xml(types)],
+    ['_rels/.rels', xml(rels)],
+    ['xl/workbook.xml', xml(workbook)],
+    ['xl/_rels/workbook.xml.rels', xml(workbookRels)],
+    ['xl/worksheets/sheet1.xml', xml(`<worksheet xmlns="${S}"><sheetData/></worksheet>`)],
+    ['xl/vbaProject.bin', project],
+  ]);
+}
+/**
+ * A Forms 2.0 property block (MS-OFORMS 2.2): version 2.0, its size, the property mask, the data block with each
+ * number aligned to its size from the block's start, and the extra data block with pairs and strings.
+ */
+function axBlock(kinds, values, wide = false) {
+  let mask = 0n;
+  const body = [...Buffer.alloc(wide ? 8 : 4)];
+  const extra = [];
+  const align = n => {
+    while ((4 + body.length) % n) body.push(0);
+  };
+  kinds.forEach((kind, i) => {
+    if (!(i in values)) return;
+    mask |= 1n << BigInt(i);
+    const v = values[i];
+    if (kind === 'string') {
+      align(4);
+      const raw = B(v);
+      const size = Buffer.alloc(4);
+      size.writeUInt32LE((raw.length | 0x80000000) >>> 0);
+      body.push(...size);
+      extra.push(raw);
+    } else if (kind === 'pair') {
+      const pair = Buffer.alloc(8);
+      pair.writeInt32LE(v[0]);
+      pair.writeInt32LE(v[1], 4);
+      extra.push(pair);
+    } else {
+      const n = { u8: 1, u16: 2, u32: 4 }[kind];
+      align(n);
+      for (let k = 0; k < n; k++) body.push((v >>> (8 * k)) & 0xff);
+    }
+  });
+  align(4);
+  for (const x of extra) {
+    body.push(...x);
+    align(4);
+  }
+  const m = Buffer.alloc(wide ? 8 : 4);
+  if (wide) m.writeBigUInt64LE(mask);
+  else m.writeUInt32LE(Number(mask));
+  body.splice(0, wide ? 8 : 4, ...m);
+  return Buffer.concat([Buffer.from([0, 2, body.length & 0xff, body.length >> 8]), Buffer.from(body)]);
+}
+const MORPH = [...'u32 u32 u32 u32 u8 u8 u8 u8 pair u16 u32 u16 u16 u16 u16 u16 u8 u8 u8 undefined u8 u8 string string u32 u32 u32 picture picture u16 undefined flag string'.split(' ')];
+const TEXT_PROPS = ['string', 'u32', 'u32', 'u32', 'u8', 'u8', 'u8', 'u16'];
+const CHECKBOX = '8BD21D40-EC42-11CE-9E0D-00AA006002F3';
+/** A GUID as Windows writes it, in the byte order a file holds. */
+function guidBytes(text) {
+  const h = Buffer.from(text.replace(/-/g, ''), 'hex');
+  return Buffer.concat([Buffer.from(h.subarray(0, 4)).reverse(), Buffer.from(h.subarray(4, 6)).reverse(), Buffer.from(h.subarray(6, 8)).reverse(), h.subarray(8)]);
+}
+/** A Forms 2.0 check box as Excel persists it in an activeX part's binary: its class id, its properties, its font. */
+const checkBoxData = () =>
+  Buffer.concat([guidBytes(CHECKBOX), axBlock(MORPH, { 0: 0x2c80081b, 6: 4, 8: [2000, 500], 22: '0', 23: 'Inert box' }, true), axBlock(TEXT_PROPS, { 0: 'Inert Sans', 2: 165 })]);
+
+/** A one-sheet .xlsm with a VBA project and a Forms 2.0 check box on the sheet, whose click the sheet's module handles. */
+function controlsXlsm() {
+  const xml = s => B(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${s}`);
+  const S = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const types =
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '<Override PartName="/xl/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/><Override PartName="/xl/activeX/activeX1.xml" ContentType="application/vnd.ms-office.activeX+xml"/><Override PartName="/xl/activeX/activeX1.bin" ContentType="application/vnd.ms-office.activeX"/></Types>';
+  const rels = `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PKG_REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const workbookRels = `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PKG_REL}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>`;
+  const sheetRels = `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PKG_REL}/control" Target="../activeX/activeX1.xml"/></Relationships>`;
+  const axRels =
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="activeX1.bin"/></Relationships>';
+  const ax = `<ax:ocx ax:classid="{${CHECKBOX}}" ax:persistence="persistStreamInit" r:id="rId1" xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" xmlns:r="${PKG_REL}"/>`;
+  const workbook = `<workbook xmlns="${S}" xmlns:r="${PKG_REL}"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const project = vbaProject([{ name: 'Sheet1', kind: 'document', source: 'Sub InertBox_Click()\n    inertCount = inertCount + 1\n    Cells(2, 7).Value = inertCount\nEnd Sub\n' }]);
+  return zip([
+    ['[Content_Types].xml', xml(types)],
+    ['_rels/.rels', xml(rels)],
+    ['xl/workbook.xml', xml(workbook)],
+    ['xl/_rels/workbook.xml.rels', xml(workbookRels)],
+    ['xl/worksheets/sheet1.xml', xml(`<worksheet xmlns="${S}" xmlns:r="${PKG_REL}"><sheetData/><controls><control shapeId="1025" r:id="rId1" name="InertBox"/></controls></worksheet>`)],
+    ['xl/worksheets/_rels/sheet1.xml.rels', xml(sheetRels)],
+    ['xl/activeX/activeX1.xml', xml(ax)],
+    ['xl/activeX/_rels/activeX1.xml.rels', xml(axRels)],
+    ['xl/activeX/activeX1.bin', checkBoxData()],
+    ['xl/vbaProject.bin', project],
+  ]);
+}
+
+/** A BIFF8 record. */
+const biff = (type, body) => Buffer.concat([Buffer.from([type & 0xff, type >> 8, body.length & 0xff, body.length >> 8]), body]);
+const biffBof = dt => biff(0x0809, Buffer.from([0x00, 0x06, dt, 0x00, 0xbb, 0x0d, 0xcc, 0x07, 0, 0, 0, 0, 0, 0, 0, 0]));
+/**
+ * An Excel 97 workbook with an Excel 4.0 macro sheet and the built-in Auto_Open name that runs it: the globals with
+ * the name and a BoundSheet8 per sheet, then each sheet's substream.
+ */
+function xlmXls() {
+  const autoOpen = biff(0x0018, Buffer.from([0x20, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
+  const bound = (pos, state, dt, name) => {
+    const b = Buffer.alloc(8);
+    b.writeUInt32LE(pos);
+    b[4] = state;
+    b[5] = dt;
+    b[6] = name.length;
+    return biff(0x0085, Buffer.concat([b, B(name)]));
+  };
+  const sheet = biffBof(0x10);
+  // The macro sheet: a cell whose formula is the number 1, the shape of an XLM macro cell.
+  const formula = Buffer.concat([Buffer.alloc(6), Buffer.alloc(8), Buffer.from([0, 0, 0, 0, 0, 0, 3, 0, 0x1e, 1, 0])]);
+  const macro = Buffer.concat([biffBof(0x40), biff(0x0006, formula), biff(0x000a, Buffer.alloc(0))]);
+  const head = Buffer.concat([biffBof(5), autoOpen]);
+  const globalsLength = head.length + bound(0, 0, 0, 'Sheet1').length + bound(0, 1, 1, 'Macro1').length + 4;
+  const sheetAt = globalsLength;
+  const macroAt = sheetAt + sheet.length + 4;
+  const book = Buffer.concat([head, bound(sheetAt, 0, 0, 'Sheet1'), bound(macroAt, 1, 1, 'Macro1'), biff(0x000a, Buffer.alloc(0)), sheet, biff(0x000a, Buffer.alloc(0)), macro]);
+  return cfb([{ name: 'Workbook', data: book }], '00020820-0000-0000-C000-000000000046');
+}
+
+/** A PowerPoint 97 to 2003 add-in: its root is its VBA project, with the class id PowerPoint writes there. */
+const addinPpa = () =>
+  cfb(
+    vbaStorages([{ name: 'Inert', kind: 'standard', source: 'Public Sub InertSlides()\n    Set inertDeck = ActivePresentation\n    inertTotal = inertDeck.Slides.Count + 1\nEnd Sub\n' }]),
+    '817246F0-720A-11CF-8718-00AA0060263B',
+  );
+
+/** A PowerPoint record. */
+const prec = (type, body, instance = 0, container = false) => {
+  const h = Buffer.alloc(8);
+  h.writeUInt16LE((instance << 4) | (container ? 0x0f : 0));
+  h.writeUInt16LE(type, 2);
+  h.writeUInt32LE(body.length, 4);
+  return Buffer.concat([h, body]);
+};
+/**
+ * A PowerPoint 97 presentation whose VBA project is stored compressed, as PowerPoint stores it: the DocumentContainer
+ * with a VBAInfoContainer naming the project's persist object, a slide with an action that runs one of its macros,
+ * the project's ExOleObjStg, the persist directory and the current edit, which the Current User stream names.
+ */
+function vbaPpt() {
+  const u32 = (...ns) => {
+    const b = Buffer.alloc(4 * ns.length);
+    for (let i = 0; i < ns.length; i++) b.writeUInt32LE(ns[i] >>> 0, 4 * i);
+    return b;
+  };
+  const docAtom = prec(0x03e9, Buffer.alloc(40));
+  const vbaInfo = prec(0x03ff, prec(0x0400, u32(3, 1, 2)), 0, true);
+  const document = prec(0x03e8, Buffer.concat([docAtom, vbaInfo]), 1, true);
+  const action = prec(0x0ff2, Buffer.concat([prec(0x0ff3, Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])), prec(0x0fba, Buffer.from('InertSlides', 'utf16le'), 2)]), 0, true);
+  const slide = prec(0x03ee, Buffer.concat([prec(0x03ef, Buffer.alloc(24)), prec(0xf00d, action, 0, true)]), 0, true);
+  const project = cfb(
+    vbaStorages([{ name: 'Inert', kind: 'standard', source: 'Public Sub InertSlides()\n    Set inertDeck = ActivePresentation\n    inertTotal = inertDeck.Slides.Count + 1\nEnd Sub\n' }]),
+  );
+  const storage = prec(0x1011, Buffer.concat([u32(project.length), zlibStored(project)]), 1);
+  const objects = [document, slide, storage];
+  const offsets = [];
+  let at = 0;
+  for (const o of objects) {
+    offsets.push(at);
+    at += o.length;
+  }
+  const persistDir = prec(0x1772, u32(1 | (3 << 20), ...offsets));
+  const dirAt = at;
+  const editAt = dirAt + persistDir.length;
+  const edit = prec(0x0ff5, Buffer.concat([u32(256), Buffer.from([0, 0, 3, 3]), u32(0, dirAt, 1, 4), Buffer.alloc(4)]));
+  const user = prec(0x0ff6, Buffer.concat([u32(0x14, 0xe391c05f, editAt), Buffer.from([5, 0, 0xf4, 0x03, 3, 0, 0, 0]), B('Inert'), u32(8)]));
+  return cfb(
+    [
+      { name: 'PowerPoint Document', data: Buffer.concat([...objects, persistDir, edit]) },
+      { name: 'Current User', data: user },
+    ],
+    '64818D10-4F9B-11CF-86EA-00AA00B929E8',
+  );
+}
+
+const SAFE_MACRO = 'Public Sub InertTotal()\n    Dim sum As Double, n As Long\n    For n = 5 To 9\n        sum = sum + Cells(n, 6).Value\n    Next n\n    Cells(10, 6).Value = sum\nEnd Sub\n';
+const SHELL_MACRO = 'Public Sub InertTotal()\n    Shell "inert-program.exe", vbHide\nEnd Sub\n';
+
 // ---------------------------------------------------------------------------------------------------------------
 
 const fixtures = {
@@ -1061,6 +1336,16 @@ const fixtures = {
   'flat.fodt': flatOdf(untidyPng()),
   'flat-opc.xml': flatOpc(untidyPng()),
   'pages.xps': xps(untidyPng()),
+  'macros.xlsm': xlsm(SAFE_MACRO),
+  'shell-macro.xlsm': xlsm(SHELL_MACRO),
+  'controls.xlsm': controlsXlsm(),
+  'xlm.xls': xlmXls(),
+  'addin.ppa': addinPpa(),
+  'macros.ppt': vbaPpt(),
+  'macros.zip': zip([
+    ['macros.xlsm', xlsm(SAFE_MACRO)],
+    ['shell-macro.xlsm', xlsm(SHELL_MACRO)],
+  ]),
   'field.rtf': rtfField(),
   'object.rtf': rtfObject('report.pdf', pdf({ js: true })),
   'message.msg': msg('report.pdf', 'application/pdf', pdf({ js: true, pad: 4096 })),
@@ -1090,7 +1375,7 @@ const fixtures = {
   }),
 };
 
-module.exports = { agileEncrypt, docx, jpeg, pdf, png, untidyPng, jpegZip };
+module.exports = { agileEncrypt, docx, jpeg, pdf, png, untidyPng, jpegZip, xlsm };
 if (require.main === module) {
   fs.mkdirSync(dir, { recursive: true });
   for (const [name, bytes] of Object.entries(fixtures)) fs.writeFileSync(path.join(dir, name), bytes);

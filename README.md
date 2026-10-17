@@ -134,6 +134,10 @@ Each package gets its section of the options, with file-defuse's router added af
 
 An inspection runs the packages on every file inside the upload too, because each package hands files to its plugins while it inspects.
 
+PDF scripts go to [script-defuse](https://www.npmjs.com/package/@patrickdk77/script-defuse). Every PDF, the upload or one found inside it, gets a `formScriptPlugin` of its own after any `scriptPlugins` the `pdf` section lists. A form keeps the AcroForm and XFA scripts that only format, check or calculate its fields, and loses the rest with script-defuse's SCRIPT_ findings in the report. Each PDF needs a new plugin, because the plugin remembers the document scripts it kept and lets field scripts call them.
+
+VBA goes to script-defuse the same way. Every Office file gets a `formScriptPlugin` of its own after any `scriptPlugins` the `office` section lists, and office-defuse shows it each module of the file's VBA project. A project whose modules all pass stays, without its compiled code, so Office compiles the source script-defuse read. A project with a module that reaches outside the document goes, with the module's SCRIPT_ findings in the report.
+
 ## Polyglots
 
 A polyglot is a file whose content matches more than one format the family detects, such as a JPEG with a ZIP archive after its end marker, or a PDF that is also a ZIP archive.

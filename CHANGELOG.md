@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 - 2026-10-16
+
+- PDF scripts go to script-defuse. Every PDF, the upload or one inside it, gets a `formScriptPlugin` of its own after the `pdf` section's `scriptPlugins`, so the AcroForm and XFA scripts that only format, check or calculate form fields stay. 0.1.3 removed every script.
+- VBA goes to script-defuse too. Every Office file, the upload or one inside it, gets a `formScriptPlugin` of its own after the `office` section's `scriptPlugins`. A VBA project whose modules only work on their document stays, without its compiled code. 0.1.3 removed every VBA project.
+- Excel 97 to 2003 workbooks, PowerPoint 97 to 2003 presentations and .ppa add-ins are written again where 0.1.3 rejected them, as office-defuse 0.2.4 rewrites their records. Forms 2.0 controls stay, and so do the buttons that run a macro of a VBA project that stays.
+- Requires pdf-defuse 0.2.4, which keeps XFA forms and tells a script plugin each script's language and form, office-defuse 0.2.4, which shows script plugins VBA and rewrites binary Excel and PowerPoint files, and script-defuse 0.2.0, which reads VBA.
+
 ## 0.1.3 - 2026-10-13
 
 - Requires xml-defuse 0.1.3 or later.

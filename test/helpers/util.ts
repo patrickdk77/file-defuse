@@ -33,7 +33,9 @@ export function makePdf(parts: DocParts = {}): Buffer {
   const add = (body: string | { dict: string; data: Buffer }) => objects.push(body);
   const files = parts.attachments ?? [];
   const names = files.map((a, i) => `(${a.name}) ${6 + 2 * i} 0 R`).join(' ');
-  add(`<< /Type /Catalog /Pages 2 0 R${files.length ? ` /Names << /EmbeddedFiles << /Names [${names}] >> >>` : ''}${parts.js ? ' /OpenAction << /S /JavaScript /JS (app.alert\\(1\\)) >>' : ''} >>`);
+  add(
+    `<< /Type /Catalog /Pages 2 0 R${files.length ? ` /Names << /EmbeddedFiles << /Names [${names}] >> >>` : ''}${parts.js ? ' /OpenAction << /S /JavaScript /JS (app.launchURL\\("https://example.invalid/"\\)) >>' : ''} >>`,
+  );
   add('<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>');
   add('<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
   add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');

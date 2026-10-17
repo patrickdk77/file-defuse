@@ -2,6 +2,7 @@ import { type ArchiveOptions, archivePlugin, allFindingSpecs as archiveSpecs, di
 import { disarmImageSource, type ImageOptions, imagePlugin, allFindingSpecs as imageSpecs, inspectImageSource } from '@patrickdk77/img-defuse';
 import { disarmOfficeSource, inspectOfficeSource, type OfficeOptions, officePlugin, allFindingSpecs as officeSpecs } from '@patrickdk77/office-defuse';
 import { disarmPdfSource, inspectPdfSource, type PdfOptions, pdfPlugin, allFindingSpecs as pdfSpecs } from '@patrickdk77/pdf-defuse';
+import { formScriptPlugin } from '@patrickdk77/script-defuse';
 import { disarmXmlSource, inspectXmlSource, type XmlOptions, xmlPlugin, allFindingSpecs as xmlSpecs } from '@patrickdk77/xml-defuse';
 import type { DetectHints, FileFamily } from './detect';
 import { TextReader, textPlugin } from './text';
@@ -125,23 +126,48 @@ function bind<O extends Shared>(p: Package<O>, options: FileOptions, router: Con
 
 const weightsOf = (specs: ReadonlyArray<{ category: string; detail: string; weight: number }>) => new Map(specs.map(s => [`${s.category}/${s.detail}`, s.weight]));
 
+/**
+ * The options of one PDF's run, with a script-defuse plugin of its own after any script plugins the caller gave. The
+ * plugin keeps the AcroForm and XFA scripts that only format, check or calculate form fields, and remembers the
+ * document scripts it kept for the field scripts that call them, so every PDF needs a new one.
+ */
+function withScripts(o: PdfOptions): PdfOptions {
+  return { ...o, scriptPlugins: [...(o.scriptPlugins ?? []), formScriptPlugin()] };
+}
+
 const PDF: Package<PdfOptions> = {
   section: 'pdf',
   takes: ['password', 'stripMetadata', 'tempDir', 'memoryThreshold'],
   options: o => o.pdf,
-  plugin: pdfPlugin,
-  inspect: inspectPdfSource,
-  disarm: disarmPdfSource,
+  // Every PDF found inside a file runs with these options, so each one gets its plugin when it is processed.
+  plugin: o => {
+    const plugin = pdfPlugin(o);
+    return { ...plugin, process: (file, sink, context) => pdfPlugin(withScripts(o)).process(file, sink, context) };
+  },
+  inspect: (source, o) => inspectPdfSource(source, withScripts(o)),
+  disarm: (source, sink, o) => disarmPdfSource(source, sink, withScripts(o)),
   weights: weightsOf(pdfSpecs()),
 };
+
+/**
+ * The options of one Office file's run, with a script-defuse plugin of its own after any script plugins the caller
+ * gave. office-defuse shows it the modules of the file's VBA project, which stays when the plugin passes every module.
+ */
+function withOfficeScripts(o: OfficeOptions): OfficeOptions {
+  return { ...o, scriptPlugins: [...(o.scriptPlugins ?? []), formScriptPlugin()] };
+}
 
 const OFFICE: Package<OfficeOptions> = {
   section: 'office',
   takes: ['password', 'tempDir', 'memoryThreshold'],
   options: o => o.office,
-  plugin: officePlugin,
-  inspect: inspectOfficeSource,
-  disarm: disarmOfficeSource,
+  // Every Office file found inside a file runs with these options, so each one gets its plugin when it is processed.
+  plugin: o => {
+    const plugin = officePlugin(o);
+    return { ...plugin, process: (file, sink, context) => officePlugin(withOfficeScripts(o)).process(file, sink, context) };
+  },
+  inspect: (source, o) => inspectOfficeSource(source, withOfficeScripts(o)),
+  disarm: (source, sink, o) => disarmOfficeSource(source, sink, withOfficeScripts(o)),
   weights: weightsOf(officeSpecs()),
 };
 
