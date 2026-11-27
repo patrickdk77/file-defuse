@@ -6,7 +6,7 @@ Sanitize uploads with the defuse family of packages. file-defuse detects what a 
 npm install @patrickdk77/file-defuse
 ```
 
-Node 18 or later.
+Node 18 or later. The optional XFA flattening needs Node 22.13 or later.
 
 | Section | Package | Reads |
 |---|---|---|
@@ -282,7 +282,8 @@ The override applies to the upload only. A file inside the upload that no packag
 | `stripMetadata` | none | Goes to each package that takes it |
 | `tempDir` | none | Goes to each package that takes it, and to the router's copy of an output |
 | `memoryThreshold` | none | Goes to each package that takes it, and to the router's copy of an output |
-| `actionOverrides` | none | Changes the action of file-defuse's own findings, TYPE, LIMIT and PROCESSING |
+| `actionOverrides` | none | Changes the action of file-defuse's own findings, TYPE, LIMIT, PROCESSING and FLATTEN |
+| `flattenXfa` | off | In a disarm, draws dynamic XFA forms as plain PDFs with @patrickdk77/xfa-flatten. See XFA forms |
 
 `password`, `stripMetadata`, `tempDir` and `memoryThreshold` go to each package that takes them, unless that package's section sets its own. pdf-defuse and archive-defuse take all four. office-defuse takes `password`, `tempDir` and `memoryThreshold`. img-defuse and xml-defuse take `stripMetadata`, `tempDir` and `memoryThreshold`, and the text rules take `tempDir` and `memoryThreshold`. xml-defuse also gets the upload's `name`, for its `.hta` check. A section's own `actionOverrides`, `scoreWeights` and `limits` apply to that package's runs, for the upload and for every file of its format inside it.
 
@@ -331,6 +332,57 @@ A tree limit throws an error with `code: 'DEFUSE_LIMIT'` from inside the tree, a
 
 An I/O error fails the run instead of giving a verdict. `inspectFileSource` and `disarmFileSource` throw it.
 
+## XFA forms
+
+Some PDFs hold nothing but a dynamic XFA form. The one real page says "Please wait", and Chrome, Edge and Preview show only that page. With `flattenXfa` on, a disarm sends every PDF it writes through [@patrickdk77/xfa-flatten](https://www.npmjs.com/package/@patrickdk77/xfa-flatten), which draws a dynamic form's pages as a plain PDF. That means the upload and every PDF inside another file, in a ZIP archive, an Outlook .msg message, an Office file or attached to another PDF. The option is off by default.
+
+```js
+await disarmFile(bytes, { flattenXfa: true });
+await disarmFile(bytes, { flattenXfa: { limits: { pixels: 4_000_000 } } });
+```
+
+`limits.pixels` goes to xfa-flatten's own `limits.pixels`, the most pixels xfa-flatten decodes for one PNG, GIF, BMP or TIFF image of a form. It leaves a larger image out and notes it.
+
+### Installing xfa-flatten
+
+xfa-flatten is an optional peer dependency, because it needs Node 22.13 or later and pulls in pdfjs-dist. file-defuse itself still runs on Node 18. Install it next to file-defuse to use the option:
+
+```
+npm install @patrickdk77/xfa-flatten
+```
+
+file-defuse loads it once per process, the first time a disarm has the option on. A disarm with the option on throws when the package is missing or Node is older than the floor in xfa-flatten's `engines.node`, and the error says which. It never skips the flatten. `filePlugin(options)` throws the same error when you create it. On an older Node, xfa-flatten itself would load and pdf.js would fail inside every form later, so file-defuse checks the version first.
+
+### The passes
+
+1. pdf-defuse disarms the PDF, as it does without the option. This pass's report is the result's `before`, the same one `inspectFile` gives.
+2. xfa-flatten reads pdf-defuse's output, never the file as it arrived. pdf-defuse's rewrite has already dropped any encryption, so xfa-flatten needs no password, and pdf.js parses only a file pdf-defuse wrote. xfa-flatten gets the tree's deadline.
+3. When xfa-flatten draws the form, pdf-defuse disarms the drawn PDF too. That output is what the disarm writes, and its report is the result's `after`. If pdf-defuse rejects the drawn PDF, file-defuse rejects the upload with PROCESSING/VERIFICATION_FAILED.
+
+A PDF that is not a pure XFA form stays as pdf-defuse wrote it, with no FLATTEN finding. That covers a PDF with no XFA, and a static XFA form, whose pages carry their own content. A form xfa-flatten cannot lay out or draw stays as pdf-defuse wrote it too, XFA form and all, with FLATTEN/FAILED.
+
+### FLATTEN findings
+
+| Finding | Action | Reported in | Meaning |
+|---|---|---|---|
+| FLATTEN/XFA | `strip` | `before` and `removed` | xfa-flatten drew the form as plain pages. The output has none of the form's fields, scripts or attached files. `data.pages` is the page count |
+| FLATTEN/NOTE | `info` | `after` | One of xfa-flatten's notes on something it did not draw or do, such as a script that did not run. `data.kind` is the note's kind and `location` the note's place in the form |
+| FLATTEN/FAILED | `info` | `after` | xfa-flatten could not flatten the form. `data.kind` is the kind of the note that says why, and `data.reason` holds the notes |
+
+All three weigh 0. A note can quote names, paths and values from the PDF. Descriptions and locations therefore show each control and format character as `?`, as pdf-defuse does, and stop at 300 characters.
+
+`actionOverrides` changes them like any of file-defuse's own findings. FLATTEN/FAILED set to `reject` refuses a form that does not flatten. FLATTEN/NOTE set to `reject` refuses a form xfa-flatten drew with a note. For those two, `strip` rejects as well, because the only thing left to remove is the whole file. FLATTEN/XFA set to `reject` refuses every dynamic form, and set to `info` keeps the form as pdf-defuse wrote it. Inside a container, a refusal removes the PDF and the container stays.
+
+```js
+await disarmFile(bytes, { flattenXfa: true, actionOverrides: [{ category: 'FLATTEN', detail: 'FAILED', action: 'reject' }] });
+```
+
+### Inspect, filePlugin and time
+
+Inspect never flattens, with the option or without it, and its report has no FLATTEN findings. `filePlugin` cannot tell a container's inspection from its disarm, since the container calls `process` in both, so with the option on it flattens every PDF it gets.
+
+pdf.js lays a form out in calls that cannot be interrupted. xfa-flatten checks the deadline between its own steps, so a run can overshoot the deadline by as long as one pdf.js call takes, as xfa-flatten's README says. file-defuse checks the tree's time again when xfa-flatten returns. Once the deadline has passed, or xfa-flatten reports that it did, file-defuse rejects the upload with LIMIT/TIME, as anywhere else in the tree. For a hard bound, run the disarm in a worker thread with `resourceLimits`. `limits.timeMs` still has no default.
+
 ## Inside another container
 
 `filePlugin(options)` returns file-defuse as a contained file plugin, for a container that is not part of it, such as a pdf-defuse run of your own:
@@ -356,6 +408,7 @@ file-defuse detect <file> [options]
 --password-file <path>   read passwords from a file, one per line; FILE_DEFUSE_PASSWORD holds one
 --config <module>        load a whole options object, repeatable; the other options apply on top
 --strip-metadata
+--flatten-xfa            defuse: draw dynamic XFA forms as plain PDFs; needs @patrickdk77/xfa-flatten and Node 22.13
 --limit <name>=<value>   fileSize, nestingDepth, files, decodedBytes, timeMs; sizes accept kb, mb, gb
 --json                   print the result as JSON
 ```
@@ -366,7 +419,7 @@ Use `-` for stdin or stdout. The tool copies stdin to a temporary file in `tempD
 
 `--password-file` reads one password per line. The tool drops a carriage return at the end of a line and skips blank lines, since every package tries the empty password anyway. Spaces belong to the password. `FILE_DEFUSE_PASSWORD` holds one password, and a line break in it is part of that password. `--password-file` replaces it, and either one replaces a `password` that a `--config` module sets. There is no password flag, because other users can read command-line arguments from the process list. An unknown option shows in the error without the text after its `=`, in case that text is a password typed in the wrong place.
 
-A `--config` module's default export is the options object. For CommonJS that is `module.exports`. Several `--config` modules combine. Their limits merge, and for any other option, a whole section included, the later module wins. `--limit` and `--strip-metadata` apply on top, wherever they sit on the command line.
+A `--config` module's default export is the options object. For CommonJS that is `module.exports`. Several `--config` modules combine. Their limits merge, and for any other option, a whole section included, the later module wins. `--limit`, `--strip-metadata` and `--flatten-xfa` apply on top, wherever they sit on the command line. `--flatten-xfa` keeps a `flattenXfa` object from a `--config` module, such as one with a pixel limit. `inspect` never flattens.
 
 `nestingDepth`, `files` and `timeMs` take whole numbers. `fileSize` and `decodedBytes` take sizes. Any other value is a usage error.
 
@@ -383,7 +436,7 @@ Exit codes are 0 for clean, 1 for stripped or strippable, 2 for rejected and 3 f
 
 ## Development
 
-Development needs Node 22.12 or later, for mocha 12 and for the CommonJS test build, which loads chai 6 with `require()`. The published package runs on Node 18 or later.
+Development needs Node 22.12 or later, for mocha 12 and for the CommonJS test build, which loads chai 6 with `require()`. The published package runs on Node 18 or later. Below Node 22.13 the XFA tests check the error the `flattenXfa` option throws, and from 22.13 on they flatten.
 
 ```sh
 npm install --ignore-scripts

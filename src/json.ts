@@ -165,7 +165,7 @@ export class JsonScanner {
 
   push(cp: number, at: number, length: number): void {
     if (this.failed) return;
-    for (;;) {
+    while (true) {
       if (this.token === STRING) {
         this.stringChar(cp, at, length);
         break;

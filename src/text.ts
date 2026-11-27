@@ -285,7 +285,7 @@ class Delimited {
   }
 
   push(c: number, at: number): void {
-    for (;;) {
+    while (true) {
       const quotedSigned = this.state === SIGNED_IN_QUOTES;
       switch (this.state) {
         case FIELD_START:

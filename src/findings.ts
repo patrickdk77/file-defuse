@@ -55,6 +55,10 @@ def(C.Yaml, D.PrototypeKey, 'strip', 60, 'A mapping has <a {key}|a __proto__> ke
 def(C.Yaml, D.Depth, 'reject', 0, 'The YAML nests deeper than the depth limit allows');
 // PROCESSING
 def(C.Processing, D.VerificationFailed, 'reject', 0, 'The defused output did not pass its own check, so nothing was written<: {reasons}|>');
+// FLATTEN
+def(C.Flatten, D.Xfa, 'strip', 0, 'The dynamic XFA form was replaced by its pages, drawn as a plain PDF without its fields, scripts or attached files');
+def(C.Flatten, D.Note, 'info', 0, 'xfa-flatten did not draw or do part of the form<: {kind}|>');
+def(C.Flatten, D.Failed, 'info', 0, 'The dynamic XFA form could not be flattened, so it stays as pdf-defuse cleaned it<: {reason}|>');
 
 function ownSpec(category: C, detail: D): Spec {
   const s = specs.get(`${category}/${detail}`);

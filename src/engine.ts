@@ -1,4 +1,6 @@
 import { bufferSink, bufferSource } from '@patrickdk77/pdf-defuse';
+import { flattenerFor } from './flatten';
+import type { Spill } from './spill';
 import { stopsTree, Tree } from './tree';
 import {
   type ByteSink,
@@ -58,6 +60,18 @@ async function deliver(source: ByteSource, sink: ByteSink, tree: Tree): Promise<
 /** The upload as a contained file, with the name and declared type the options give it. */
 const upload = (source: ByteSource, size: number, options: FileOptions): ContainedFile => ({ size, location: 'upload', depth: 0, source, name: options.name, declaredType: options.declaredType });
 
+/**
+ * The inspection with findings of file-defuse's own for the file added after the file's own findings, before those of
+ * the files inside it, and the status they give it. They weigh 0, so the score stands.
+ */
+function withOwn(i: FileInspection, added: FileFinding[]): FileInspection {
+  if (!added.length) return i;
+  const at = i.findings.findIndex(f => f.attachment !== undefined);
+  const findings = at < 0 ? [...i.findings, ...added] : [...i.findings.slice(0, at), ...added, ...i.findings.slice(at)];
+  const status = added.some(f => f.action === 'reject') ? 'rejected' : i.status === 'clean' && added.some(f => f.action === 'strip') ? 'strippable' : i.status;
+  return { ...i, status, findings };
+}
+
 /** Inspects any file without changing it, with every file inside it. The source is closed when the run ends. */
 export async function inspectFileSource(source: ByteSource, options: FileOptions = {}): Promise<FileInspection> {
   const tree = new Tree(options, 0);
@@ -79,12 +93,14 @@ export async function inspectFileSource(source: ByteSource, options: FileOptions
 /**
  * Writes a defused copy of any file to `sink`, with every file inside it defused too. The package that reads the
  * file writes its output to a temporary copy, and the router detects the copy again before any of it reaches the
- * sink: a second format still there rejects the upload with PROCESSING/VERIFICATION_FAILED. The source is closed when
- * the run ends.
+ * sink: a second format still there rejects the upload with PROCESSING/VERIFICATION_FAILED. With the flattenXfa
+ * option on, xfa-flatten then draws a dynamic XFA form as a plain PDF, which pdf-defuse defuses again. The source is
+ * closed when the run ends.
  */
 export async function disarmFileSource(source: ByteSource, sink: ByteSink, options: FileOptions = {}): Promise<FileDisarmResult> {
   const tree = new Tree(options, 0);
   try {
+    tree.disarming();
     const size = await source.size();
     const fileSize = options.limits?.fileSize;
     if (fileSize !== undefined && size > fileSize) return Tree.refused(Tree.rejected([tree.factory.make(C.Limit, D.FileSize, { size })]));
@@ -98,6 +114,7 @@ export async function disarmFileSource(source: ByteSource, sink: ByteSink, optio
     }
     const hints = { name: options.name, declaredType: options.declaredType };
     const spill = tree.spill(picked.reader);
+    let drawn: Spill | undefined;
     try {
       const r = await picked.reader.disarm(picked.file.source, spill, tree.remaining(), hints);
       const before = tree.wrap(picked.reader, r.before, picked.detection);
@@ -108,12 +125,28 @@ export async function disarmFileSource(source: ByteSource, sink: ByteSink, optio
         before.findings.push(tree.verificationFailed(left));
         return Tree.refused({ ...before, status: 'rejected' });
       }
-      await deliver(spill.source(), sink, tree);
       const stripped = poly.filter(f => f.action === 'strip');
-      const status = r.status === 'clean' && stripped.length ? 'defused' : r.status;
-      return { status, before, after: r.after && tree.wrap(picked.reader, r.after), removed: [...stripped, ...r.removed] };
+      const removed = [...stripped, ...r.removed];
+      let after = r.after && tree.wrap(picked.reader, r.after);
+      let defused = r.status === 'defused' || stripped.length > 0;
+      let own = before;
+      if (tree.flattens(picked.reader)) {
+        const flat = await tree.flatten(picked.reader, spill.source(), tree.deadline, hints, picked.detection, poly);
+        drawn = flat.flattened?.output;
+        own = withOwn(before, flat.before);
+        if (flat.rejected) return Tree.refused(own);
+        // The drawn form's pass is what the output holds, and its output check is the output's report.
+        const r2 = flat.flattened?.disarm;
+        if (r2) after = r2.after && tree.wrap(picked.reader, r2.after);
+        after = after && withOwn(after, flat.after);
+        removed.push(...flat.before.filter(f => f.action === 'strip'), ...(r2?.removed ?? []));
+        defused ||= removed.length > 0;
+      }
+      await deliver((drawn ?? spill).source(), sink, tree);
+      return { status: defused ? 'defused' : 'clean', before: own, after, removed };
     } finally {
       await spill.dispose();
+      await drawn?.dispose();
     }
   } catch (e) {
     return Tree.refused(atUpload(tree, e));
@@ -143,12 +176,15 @@ export async function disarmFile(bytes: Uint8Array, options: FileOptions = {}): 
  * when the run ends. Deeper, a tree limit throws with the DEFUSE_LIMIT code, for the container to pass up.
  */
 export function filePlugin(options: FileOptions = {}): ContainedFilePlugin {
+  // With the flattenXfa option on, a plugin that cannot flatten fails here, before any container swallows the error.
+  flattenerFor(options);
   return {
     kind: 'file',
     name: 'file-defuse',
     accepts: file => new Tree(options, file.depth).accepts(file),
     async process(file, sink, context) {
       const tree = new Tree(options, context.depth, context.deadline);
+      tree.disarming();
       const fileSize = options.limits?.fileSize;
       // Like a package's own file size limit, this one has no code: the file goes and the run goes on.
       if (fileSize !== undefined && file.size > fileSize) return { result: 'removed', findings: [tree.factory.make(C.Limit, D.FileSize, { size: file.size })] };

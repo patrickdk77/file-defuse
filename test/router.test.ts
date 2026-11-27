@@ -328,6 +328,9 @@ describe('finding specs', () => {
       'strip 60 YAML/PROTOTYPE_KEY',
       'reject 0 YAML/DEPTH',
       'reject 0 PROCESSING/VERIFICATION_FAILED',
+      'strip 0 FLATTEN/XFA',
+      'info 0 FLATTEN/NOTE',
+      'info 0 FLATTEN/FAILED',
     ]);
   });
 });

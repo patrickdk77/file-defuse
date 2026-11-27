@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 - 2026-11-26
+
+- Requires pdf-defuse 0.4.0, which checks the images in a form's `/XFAImages` tree, keeps an image href that names one, and reads a bare `&` in XFA text as pdf.js does.
+- The `flattenXfa` option draws dynamic XFA forms as plain PDFs with @patrickdk77/xfa-flatten, an optional peer that needs Node 22.13 or later. It covers the upload and every PDF inside it, and reports FLATTEN/XFA, FLATTEN/NOTE and FLATTEN/FAILED. Inspect never flattens.
+- `--flatten-xfa` turns the option on from the command line.
+
 ## 0.2.1 - 2026-10-17
 
 - The JSON reader's flag for a backslash it just read is `escaped`, not `escape`. Security scanners match Node's global names in built code.

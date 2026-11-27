@@ -19,6 +19,7 @@ Options:
   --password-file <path>   read passwords from a file, one per line; FILE_DEFUSE_PASSWORD holds one
   --config <module>        load a whole options object, repeatable; the other options apply on top
   --strip-metadata
+  --flatten-xfa            defuse: draw dynamic XFA forms as plain PDFs; needs @patrickdk77/xfa-flatten and Node 22.13
   --limit <name>=<value>   fileSize, nestingDepth, files, decodedBytes, timeMs; sizes accept kb, mb, gb
   --json                   print the result as JSON
 
@@ -114,6 +115,7 @@ async function parse(argv: string[]): Promise<Parsed> {
   const options: FileOptions = {};
   const limits: FileLimits = {};
   let stripMetadata = false;
+  let flattenXfa = false;
   let json = false;
   let password: string | string[] | undefined = process.env.FILE_DEFUSE_PASSWORD;
   for (let i = 0; i < rest.length; i++) {
@@ -142,6 +144,9 @@ async function parse(argv: string[]): Promise<Parsed> {
       case '--strip-metadata':
         stripMetadata = true;
         break;
+      case '--flatten-xfa':
+        flattenXfa = true;
+        break;
       case '--limit': {
         const [name, value] = next().split('=');
         if (value === undefined) throw new UsageError('--limit expects name=value');
@@ -164,6 +169,8 @@ async function parse(argv: string[]): Promise<Parsed> {
     }
   }
   if (stripMetadata) options.stripMetadata = true;
+  // A --config module's own flattenXfa settings, such as its pixel limit, stay.
+  if (flattenXfa && !options.flattenXfa) options.flattenXfa = true;
   if (Object.keys(limits).length) options.limits = { ...(options.limits ?? {}), ...limits };
   if (password !== undefined) options.password = password;
   return { command, positional, options, json };

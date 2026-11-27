@@ -158,8 +158,18 @@ export function deflateBomb(repeats: number): Buffer {
   return out;
 }
 
-/** A ZIP archive of entries stored as given, each with the method and the uncompressed size its headers declare. */
-export function zipOf(entries: Array<{ name: string; data: Buffer; method?: number; size?: number }>): Buffer {
+/** The CRC-32 a ZIP archive gives each entry. Node 18's zlib has none. */
+export function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) {
+    c ^= b;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** A ZIP archive of entries stored as given, each with the method, the uncompressed size and the CRC-32 its headers declare. */
+export function zipOf(entries: Array<{ name: string; data: Buffer; method?: number; size?: number; crc?: number }>): Buffer {
   const local: Buffer[] = [];
   const central: Buffer[] = [];
   let offset = 0;
@@ -169,6 +179,7 @@ export function zipOf(entries: Array<{ name: string; data: Buffer; method?: numb
     head.writeUInt32LE(0x04034b50, 0);
     head.writeUInt16LE(20, 4);
     head.writeUInt16LE(e.method ?? 0, 8);
+    head.writeUInt32LE(e.crc ?? 0, 14);
     head.writeUInt32LE(e.data.length, 18);
     head.writeUInt32LE(e.size ?? e.data.length, 22);
     head.writeUInt16LE(n.length, 26);
@@ -177,6 +188,7 @@ export function zipOf(entries: Array<{ name: string; data: Buffer; method?: numb
     record.writeUInt16LE(20, 4);
     record.writeUInt16LE(20, 6);
     record.writeUInt16LE(e.method ?? 0, 10);
+    record.writeUInt32LE(e.crc ?? 0, 16);
     record.writeUInt32LE(e.data.length, 20);
     record.writeUInt32LE(e.size ?? e.data.length, 24);
     record.writeUInt16LE(n.length, 28);

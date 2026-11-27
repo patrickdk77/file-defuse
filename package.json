@@ -1,6 +1,6 @@
 {
   "name": "@patrickdk77/file-defuse",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Sanitize uploads with the defuse family. Sniffs the content, hands the file to the package that reads it, routes every file found inside back through the same router, and limits the whole tree: size, depth, file count, decoded bytes and time.",
   "license": "MIT",
   "author": "patrickdk77",
@@ -71,23 +71,36 @@
     "@patrickdk77/archive-defuse": "^0.2.1",
     "@patrickdk77/img-defuse": "^0.3.1",
     "@patrickdk77/office-defuse": "^0.3.1",
-    "@patrickdk77/pdf-defuse": "^0.3.1",
+    "@patrickdk77/pdf-defuse": "^0.4.0",
     "@patrickdk77/script-defuse": "^0.3.1",
     "@patrickdk77/xml-defuse": "^0.2.1",
     "yaml": "2.9.1"
   },
+  "peerDependencies": {
+    "@patrickdk77/xfa-flatten": "^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@patrickdk77/xfa-flatten": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.9",
+    "@patrickdk77/xfa-flatten": "^0.2.0",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "^18.19.130",
     "chai": "^6.3.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.6.0",
+    "lint-staged": "^17.6.2",
     "mocha": "^12.0.3",
     "typescript": "^7.0.2"
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,jsonc}": "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
+  },
+  "overrides": {
+    "glob": "^14.0.6",
+    "minimatch": "^11.0.9"
   }
 }

@@ -1,6 +1,7 @@
 import { type Detected, type DetectHints, detectSource, type FileFamily, type FileSignature } from './detect';
 import { FindingFactory } from './findings';
-import { type PackageInspection, type Reader, readerFor } from './routes';
+import { deadlinePassed, FLATTEN_PACKAGE, type Flattener, failedFinding, flattenerFor, flattenOptions, noteFinding, shown } from './flatten';
+import { type PackageDisarm, type PackageInspection, type Reader, readerFor } from './routes';
 import { DEFAULT_MEMORY_THRESHOLD, Spill } from './spill';
 import {
   type ByteSink,
@@ -66,6 +67,24 @@ const scored = (f: DefuseFinding) => f.attachment === undefined && f.detail !== 
 
 const REASONS: Record<NonNullable<Detected['chosenBy']>, string> = { name: 'by its name', declaredType: 'by its declared type', firstSignature: 'by the signature at its start' };
 
+/** What the flattenXfa pass made of one PDF pdf-defuse wrote. */
+export interface Flattening {
+  /** Findings for the PDF as it arrived: FLATTEN/XFA once xfa-flatten drew the form, and on a refusal what refused it. */
+  before: FileFinding[];
+  /** Findings for the output's report: FLATTEN/NOTE for a form that was drawn, FLATTEN/FAILED for one that was not. */
+  after: FileFinding[];
+  /** True when the file is refused. `before` then holds the finding that refused it. */
+  rejected: boolean;
+  /**
+   * Set when the drawn form replaces pdf-defuse's output: pdf-defuse's pass over the drawn form, and the spill that
+   * holds what it wrote. The caller disposes `output`.
+   */
+  flattened?: { disarm: PackageDisarm; output: Spill };
+}
+
+/** A pass that leaves the PDF as pdf-defuse wrote it, with no finding. */
+const unchanged = (): Flattening => ({ before: [], after: [], rejected: false });
+
 /** The package for a file, with the file as that package sees it, and what detection found either way. */
 export type Pick = { reader: Reader; file: ContainedFile; detection: Detected } | { reader?: undefined; detection: Detected };
 
@@ -80,6 +99,8 @@ export class Tree {
   readonly router: ContainedFilePlugin;
   readonly factory: FindingFactory;
   private readonly readers = new Map<string, Reader | undefined>();
+  /** xfa-flatten, in a disarm with the flattenXfa option on. An inspection never sets it, so it never flattens. */
+  private flattener?: Flattener;
   private files = 0;
   private decoded = 0;
 
@@ -133,6 +154,71 @@ export class Tree {
   /** True when a package of the family reads the file. Otherwise the container's own rule decides it. */
   async accepts(file: ContainedFile): Promise<boolean> {
     return (await this.pick(file)).reader !== undefined;
+  }
+
+  /**
+   * Makes the run a disarm. With the flattenXfa option on, every PDF pdf-defuse writes in the tree then goes through
+   * xfa-flatten. Throws when xfa-flatten cannot run.
+   */
+  disarming(): void {
+    this.flattener = flattenerFor(this.options);
+  }
+
+  /** True when the reader's output goes through xfa-flatten. */
+  flattens(reader: Reader): boolean {
+    return this.flattener !== undefined && reader.section === 'pdf';
+  }
+
+  /**
+   * The flattenXfa pass over `written`, a PDF pdf-defuse wrote. xfa-flatten reads it, never the file as it arrived:
+   * pdf-defuse's rewrite has dropped any encryption, and pdf.js parses only a file pdf-defuse already rewrote. A form
+   * xfa-flatten drew goes through pdf-defuse again, and that pass's output replaces the first. A form it cannot draw
+   * keeps pdf-defuse's output. When xfa-flatten says the deadline passed, the tree stops at its time limit.
+   */
+  async flatten(reader: Reader, written: ByteSource, deadline: number | undefined, hints: DetectHints, d: Detected, poly: FileFinding[]): Promise<Flattening> {
+    const flattener = this.flattener;
+    if (!flattener) return unchanged();
+    const flat = this.spill(reader);
+    try {
+      const r = await flattener.flattenXfaSource(written, flat, flattenOptions(this.options, deadline));
+      if (deadlinePassed(r.notes)) this.stop('time', D.Time);
+      // pdf.js lays a form out without checking the deadline, so it can pass with no note.
+      this.checkTime();
+      if (r.status === 'unchanged') return unchanged();
+      if (r.status === 'failed') {
+        const f = failedFinding(this.factory, r.notes);
+        return f.action === 'reject' ? { before: [f], after: [], rejected: true } : { before: [], after: [f], rejected: false };
+      }
+      if (r.status !== 'flattened') throw new Error(`${FLATTEN_PACKAGE} returned an unknown status, ${shown(String(r.status), 60)}`);
+      const xfa = this.factory.make(C.Flatten, D.Xfa, r.pages === undefined ? undefined : { pages: r.pages });
+      // An override to info keeps the form, so pdf-defuse's output stands.
+      if (xfa.action === 'info') return { before: [xfa], after: [], rejected: false };
+      const notes = r.notes.map(n => noteFinding(this.factory, n));
+      if (xfa.action === 'reject' || notes.some(f => f.action === 'reject')) return { before: [xfa, ...notes.filter(f => f.action === 'reject')], after: [], rejected: true };
+      const pass2 = this.spill(reader);
+      let kept = false;
+      try {
+        const r2 = await reader.disarm(flat.source(), pass2, deadline === undefined ? undefined : Math.max(0, deadline - Date.now()), hints);
+        await flat.dispose();
+        if (this.stopped) throw this.stopped;
+        if (r2.status === 'rejected') {
+          // A pass stopped by the time limit stops the tree. Any other refusal is of file-defuse's own output.
+          this.checkTime();
+          const why = r2.before.findings.filter(f => f.action === 'reject').map(f => `${f.category}/${f.detail}`);
+          const reasons = `pdf-defuse rejected the drawn form${why.length ? ` for ${why.slice(0, 10).join(', ')}` : ''}`;
+          return { before: [xfa, this.factory.make(C.Processing, D.VerificationFailed, { reasons })], after: [], rejected: true };
+        }
+        const left = await this.leftover(d, pass2.source(), pass2.size, hints, poly);
+        if (left.length) return { before: [xfa, this.verificationFailed(left)], after: [], rejected: true };
+        reader.weigh(r2.removed);
+        kept = true;
+        return { before: [xfa], after: notes, rejected: false, flattened: { disarm: r2, output: pass2 } };
+      } finally {
+        if (!kept) await pass2.dispose();
+      }
+    } finally {
+      await flat.dispose();
+    }
   }
 
   /** The time left, for a package that takes a time limit instead of a deadline. */
@@ -229,6 +315,7 @@ export class Tree {
     if (!picked.reader) return this.unknown(picked.detection);
     const deadline = context.deadline === undefined ? this.deadline : this.deadline === undefined ? context.deadline : Math.min(context.deadline, this.deadline);
     const spill = this.spill(picked.reader);
+    let flat: Flattening | undefined;
     try {
       const out = await picked.reader.plugin.process(picked.file, spill, { depth: context.depth, deadline });
       const r: ContainedFileResult = typeof out === 'string' ? { result: out } : out;
@@ -243,11 +330,25 @@ export class Tree {
       const output = written ? spill.source() : picked.file.source;
       const left = await this.leftover(picked.detection, output, written ? spill.size : file.size, hints, poly);
       if (left.length) return { result: 'removed', findings: [...(r.findings ?? []), this.verificationFailed(left)] };
-      if (written) await spill.copyTo(sink, () => this.checkTime());
+      let kept = written ? spill : undefined;
+      if (written && this.flattens(picked.reader)) {
+        flat = await this.flatten(picked.reader, spill.source(), deadline, hints, picked.detection, poly);
+        if (flat.rejected) return { result: 'removed', findings: [...(r.findings ?? []), ...flat.before] };
+        const drawn = flat.flattened;
+        if (flat.before.length || drawn?.disarm.removed.length) r.findings = [...(r.findings ?? []), ...flat.before, ...(drawn?.disarm.removed ?? [])];
+        if (drawn) {
+          picked.reader.weigh(drawn.disarm.after?.findings);
+          r.outputFindings = [...(drawn.disarm.after?.findings ?? []), ...flat.after];
+          r.result = 'scrubbed';
+          kept = drawn.output;
+        } else if (flat.after.length) r.outputFindings = [...(r.outputFindings ?? []), ...flat.after];
+      }
+      if (kept) await kept.copyTo(sink, () => this.checkTime());
       if (r.result === 'passed' && written && poly.some(f => f.action === 'strip')) r.result = 'scrubbed';
       return r;
     } finally {
       await spill.dispose();
+      await flat?.flattened?.output.dispose();
     }
   }
 

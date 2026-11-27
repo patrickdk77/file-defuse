@@ -15,6 +15,8 @@ export enum FileCategory {
   SourceMap = 'SOURCEMAP',
   Yaml = 'YAML',
   Processing = 'PROCESSING',
+  /** xfa-flatten's pass over a PDF, with the flattenXfa option. */
+  Flatten = 'FLATTEN',
 }
 
 /** Exact variant of a finding file-defuse makes itself. */
@@ -55,6 +57,10 @@ export enum FileDetail {
   FileCount = 'FILE_COUNT',
   DecodedSize = 'DECODED_SIZE',
   Time = 'TIME',
+  // FLATTEN
+  Xfa = 'XFA',
+  Note = 'NOTE',
+  Failed = 'FAILED',
 }
 
 export type FileFindingAction = 'reject' | 'strip' | 'info';
@@ -192,6 +198,17 @@ export interface FileLimits {
   timeMs?: number;
 }
 
+/** The flattenXfa option's settings for @patrickdk77/xfa-flatten. */
+export interface FlattenXfaOptions {
+  limits?: {
+    /**
+     * Pixels in one decoded PNG, GIF, BMP or TIFF image of a form, as xfa-flatten's `limits.pixels`. An image over it
+     * is not drawn, and a FLATTEN/NOTE says so. xfa-flatten's default is 16,777,216.
+     */
+    pixels?: number;
+  };
+}
+
 export interface FileActionOverride {
   category: FileCategory;
   detail?: FileDetail;
@@ -232,4 +249,10 @@ export interface FileOptions {
   memoryThreshold?: number;
   /** Changes the action of file-defuse's own findings. A section's overrides cover that package's findings. */
   actionOverrides?: FileActionOverride[];
+  /**
+   * Runs every PDF a disarm writes, the upload and each PDF inside it, through @patrickdk77/xfa-flatten, so a dynamic
+   * XFA form comes out as a plain PDF of its pages. Off by default. It needs @patrickdk77/xfa-flatten installed and
+   * Node 22.13 or later, and a disarm with it on throws without them. Inspect never flattens.
+   */
+  flattenXfa?: boolean | FlattenXfaOptions;
 }
